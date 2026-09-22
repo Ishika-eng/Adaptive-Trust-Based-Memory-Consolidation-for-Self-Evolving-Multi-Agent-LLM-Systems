@@ -1,0 +1,829 @@
+{
+  "n_tasks": 40,
+  "seed": 456,
+  "n_poison_seeded": 14,
+  "static": {
+    "log": [
+      {
+        "idx": 0,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 3,
+        "poison_remaining_in_store": 14,
+        "memory_size": 15,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 1,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 6,
+        "poison_remaining_in_store": 14,
+        "memory_size": 16,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 2,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 8,
+        "poison_remaining_in_store": 14,
+        "memory_size": 17,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 3,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 11,
+        "poison_remaining_in_store": 14,
+        "memory_size": 18,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 4,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 13,
+        "poison_remaining_in_store": 14,
+        "memory_size": 19,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 5,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 13,
+        "poison_remaining_in_store": 14,
+        "memory_size": 20,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 6,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 15,
+        "poison_remaining_in_store": 14,
+        "memory_size": 21,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 7,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 16,
+        "poison_remaining_in_store": 14,
+        "memory_size": 22,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 8,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 19,
+        "poison_remaining_in_store": 14,
+        "memory_size": 23,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 9,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 22,
+        "poison_remaining_in_store": 14,
+        "memory_size": 24,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 10,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 24,
+        "poison_remaining_in_store": 14,
+        "memory_size": 25,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 11,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 25,
+        "poison_remaining_in_store": 14,
+        "memory_size": 26,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 12,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 27,
+        "poison_remaining_in_store": 14,
+        "memory_size": 27,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 13,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 29,
+        "poison_remaining_in_store": 14,
+        "memory_size": 28,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 14,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 30,
+        "poison_remaining_in_store": 14,
+        "memory_size": 29,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 15,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 31,
+        "poison_remaining_in_store": 14,
+        "memory_size": 30,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 16,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 34,
+        "poison_remaining_in_store": 14,
+        "memory_size": 31,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 17,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 35,
+        "poison_remaining_in_store": 14,
+        "memory_size": 32,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 18,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 37,
+        "poison_remaining_in_store": 14,
+        "memory_size": 33,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 19,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 40,
+        "poison_remaining_in_store": 14,
+        "memory_size": 34,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 20,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 40,
+        "poison_remaining_in_store": 14,
+        "memory_size": 35,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 21,
+        "correct": false,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 42,
+        "poison_remaining_in_store": 14,
+        "memory_size": 36,
+        "running_acc": 0.9545454545454546
+      },
+      {
+        "idx": 22,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 43,
+        "poison_remaining_in_store": 14,
+        "memory_size": 37,
+        "running_acc": 0.9565217391304348
+      },
+      {
+        "idx": 23,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 44,
+        "poison_remaining_in_store": 14,
+        "memory_size": 38,
+        "running_acc": 0.9583333333333334
+      },
+      {
+        "idx": 24,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 45,
+        "poison_remaining_in_store": 14,
+        "memory_size": 39,
+        "running_acc": 0.96
+      },
+      {
+        "idx": 25,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 46,
+        "poison_remaining_in_store": 14,
+        "memory_size": 40,
+        "running_acc": 0.9615384615384616
+      },
+      {
+        "idx": 26,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 48,
+        "poison_remaining_in_store": 14,
+        "memory_size": 41,
+        "running_acc": 0.9629629629629629
+      },
+      {
+        "idx": 27,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 50,
+        "poison_remaining_in_store": 14,
+        "memory_size": 42,
+        "running_acc": 0.9642857142857143
+      },
+      {
+        "idx": 28,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 51,
+        "poison_remaining_in_store": 14,
+        "memory_size": 43,
+        "running_acc": 0.9655172413793104
+      },
+      {
+        "idx": 29,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 51,
+        "poison_remaining_in_store": 14,
+        "memory_size": 44,
+        "running_acc": 0.9666666666666667
+      },
+      {
+        "idx": 30,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 53,
+        "poison_remaining_in_store": 14,
+        "memory_size": 45,
+        "running_acc": 0.967741935483871
+      },
+      {
+        "idx": 31,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 54,
+        "poison_remaining_in_store": 14,
+        "memory_size": 46,
+        "running_acc": 0.96875
+      },
+      {
+        "idx": 32,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 55,
+        "poison_remaining_in_store": 14,
+        "memory_size": 47,
+        "running_acc": 0.9696969696969697
+      },
+      {
+        "idx": 33,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 56,
+        "poison_remaining_in_store": 14,
+        "memory_size": 48,
+        "running_acc": 0.9705882352941176
+      },
+      {
+        "idx": 34,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 57,
+        "poison_remaining_in_store": 14,
+        "memory_size": 49,
+        "running_acc": 0.9714285714285714
+      },
+      {
+        "idx": 35,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 58,
+        "poison_remaining_in_store": 14,
+        "memory_size": 50,
+        "running_acc": 0.9722222222222222
+      },
+      {
+        "idx": 36,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 59,
+        "poison_remaining_in_store": 14,
+        "memory_size": 51,
+        "running_acc": 0.972972972972973
+      },
+      {
+        "idx": 37,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 59,
+        "poison_remaining_in_store": 14,
+        "memory_size": 52,
+        "running_acc": 0.9736842105263158
+      },
+      {
+        "idx": 38,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 60,
+        "poison_remaining_in_store": 14,
+        "memory_size": 53,
+        "running_acc": 0.9743589743589743
+      },
+      {
+        "idx": 39,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 61,
+        "poison_remaining_in_store": 14,
+        "memory_size": 54,
+        "running_acc": 0.975
+      }
+    ],
+    "summary": {
+      "label": "static",
+      "overall_accuracy": 0.975,
+      "total_poison_exposure": 61,
+      "total_poison_used": 3,
+      "poison_remaining_final": 14,
+      "final_memory_size": 54
+    }
+  },
+  "atmc": {
+    "log": [
+      {
+        "idx": 0,
+        "correct": true,
+        "n_poison_retrieved": 3,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 3,
+        "poison_remaining_in_store": 14,
+        "memory_size": 15,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 1,
+        "correct": true,
+        "n_poison_retrieved": 2,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 5,
+        "poison_remaining_in_store": 14,
+        "memory_size": 16,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 2,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 6,
+        "poison_remaining_in_store": 14,
+        "memory_size": 17,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 3,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 7,
+        "poison_remaining_in_store": 14,
+        "memory_size": 18,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 4,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 7,
+        "poison_remaining_in_store": 14,
+        "memory_size": 19,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 5,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 7,
+        "poison_remaining_in_store": 14,
+        "memory_size": 20,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 6,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 8,
+        "poison_remaining_in_store": 14,
+        "memory_size": 21,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 7,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 8,
+        "poison_remaining_in_store": 14,
+        "memory_size": 22,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 8,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 8,
+        "poison_remaining_in_store": 14,
+        "memory_size": 23,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 9,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 9,
+        "poison_remaining_in_store": 14,
+        "memory_size": 24,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 10,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 9,
+        "poison_remaining_in_store": 14,
+        "memory_size": 25,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 11,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 9,
+        "poison_remaining_in_store": 14,
+        "memory_size": 26,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 12,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 10,
+        "poison_remaining_in_store": 14,
+        "memory_size": 27,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 13,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 10,
+        "poison_remaining_in_store": 14,
+        "memory_size": 28,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 14,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 10,
+        "poison_remaining_in_store": 14,
+        "memory_size": 29,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 15,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 11,
+        "poison_remaining_in_store": 14,
+        "memory_size": 30,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 16,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 11,
+        "poison_remaining_in_store": 14,
+        "memory_size": 31,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 17,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 11,
+        "poison_remaining_in_store": 14,
+        "memory_size": 32,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 18,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 12,
+        "poison_remaining_in_store": 14,
+        "memory_size": 33,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 19,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 12,
+        "poison_remaining_in_store": 14,
+        "memory_size": 34,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 20,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 12,
+        "poison_remaining_in_store": 14,
+        "memory_size": 35,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 21,
+        "correct": false,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 13,
+        "poison_remaining_in_store": 14,
+        "memory_size": 36,
+        "running_acc": 0.9545454545454546
+      },
+      {
+        "idx": 22,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 13,
+        "poison_remaining_in_store": 14,
+        "memory_size": 37,
+        "running_acc": 0.9565217391304348
+      },
+      {
+        "idx": 23,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 13,
+        "poison_remaining_in_store": 14,
+        "memory_size": 38,
+        "running_acc": 0.9583333333333334
+      },
+      {
+        "idx": 24,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 14,
+        "poison_remaining_in_store": 14,
+        "memory_size": 39,
+        "running_acc": 0.96
+      },
+      {
+        "idx": 25,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 14,
+        "poison_remaining_in_store": 13,
+        "memory_size": 39,
+        "running_acc": 0.9615384615384616
+      },
+      {
+        "idx": 26,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 15,
+        "poison_remaining_in_store": 13,
+        "memory_size": 40,
+        "running_acc": 0.9629629629629629
+      },
+      {
+        "idx": 27,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 16,
+        "poison_remaining_in_store": 13,
+        "memory_size": 41,
+        "running_acc": 0.9642857142857143
+      },
+      {
+        "idx": 28,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 16,
+        "poison_remaining_in_store": 13,
+        "memory_size": 42,
+        "running_acc": 0.9655172413793104
+      },
+      {
+        "idx": 29,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 16,
+        "poison_remaining_in_store": 13,
+        "memory_size": 43,
+        "running_acc": 0.9666666666666667
+      },
+      {
+        "idx": 30,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 17,
+        "poison_remaining_in_store": 13,
+        "memory_size": 44,
+        "running_acc": 0.967741935483871
+      },
+      {
+        "idx": 31,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 17,
+        "poison_remaining_in_store": 13,
+        "memory_size": 45,
+        "running_acc": 0.96875
+      },
+      {
+        "idx": 32,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 17,
+        "poison_remaining_in_store": 13,
+        "memory_size": 46,
+        "running_acc": 0.9696969696969697
+      },
+      {
+        "idx": 33,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 18,
+        "poison_remaining_in_store": 13,
+        "memory_size": 47,
+        "running_acc": 0.9705882352941176
+      },
+      {
+        "idx": 34,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 18,
+        "poison_remaining_in_store": 13,
+        "memory_size": 48,
+        "running_acc": 0.9714285714285714
+      },
+      {
+        "idx": 35,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 18,
+        "poison_remaining_in_store": 13,
+        "memory_size": 49,
+        "running_acc": 0.9722222222222222
+      },
+      {
+        "idx": 36,
+        "correct": true,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 19,
+        "poison_remaining_in_store": 13,
+        "memory_size": 50,
+        "running_acc": 0.972972972972973
+      },
+      {
+        "idx": 37,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 19,
+        "poison_remaining_in_store": 13,
+        "memory_size": 51,
+        "running_acc": 0.9736842105263158
+      },
+      {
+        "idx": 38,
+        "correct": true,
+        "n_poison_retrieved": 0,
+        "n_poison_used": 0,
+        "poison_exposure_cumulative": 19,
+        "poison_remaining_in_store": 13,
+        "memory_size": 52,
+        "running_acc": 0.9743589743589743
+      },
+      {
+        "idx": 39,
+        "correct": false,
+        "n_poison_retrieved": 1,
+        "n_poison_used": 1,
+        "poison_exposure_cumulative": 20,
+        "poison_remaining_in_store": 13,
+        "memory_size": 53,
+        "running_acc": 0.95
+      }
+    ],
+    "summary": {
+      "label": "atmc",
+      "overall_accuracy": 0.95,
+      "total_poison_exposure": 20,
+      "total_poison_used": 9,
+      "poison_remaining_final": 13,
+      "final_memory_size": 53
+    }
+  }
+}

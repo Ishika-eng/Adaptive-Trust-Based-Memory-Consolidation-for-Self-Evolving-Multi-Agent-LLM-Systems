@@ -1,0 +1,7 @@
+.env
+pilot/.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+*.log

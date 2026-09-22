@@ -1,0 +1,746 @@
+{
+  "n_tasks": 40,
+  "seed": 42,
+  "static": {
+    "log": [
+      {
+        "idx": 0,
+        "correct": true,
+        "pred": "52",
+        "gold": "52",
+        "retrieved_n": 0,
+        "memory_size": 1,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 1,
+        "correct": true,
+        "pred": "5",
+        "gold": "5",
+        "retrieved_n": 1,
+        "memory_size": 2,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 2,
+        "correct": true,
+        "pred": "83",
+        "gold": "83",
+        "retrieved_n": 2,
+        "memory_size": 3,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 3,
+        "correct": true,
+        "pred": "10",
+        "gold": "10",
+        "retrieved_n": 3,
+        "memory_size": 4,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 4,
+        "correct": true,
+        "pred": "70",
+        "gold": "70",
+        "retrieved_n": 3,
+        "memory_size": 5,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 5,
+        "correct": true,
+        "pred": "36",
+        "gold": "36",
+        "retrieved_n": 3,
+        "memory_size": 6,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 6,
+        "correct": true,
+        "pred": "48",
+        "gold": "48",
+        "retrieved_n": 3,
+        "memory_size": 7,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 7,
+        "correct": true,
+        "pred": "16",
+        "gold": "16",
+        "retrieved_n": 3,
+        "memory_size": 8,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 8,
+        "correct": true,
+        "pred": "8",
+        "gold": "8",
+        "retrieved_n": 3,
+        "memory_size": 9,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 9,
+        "correct": true,
+        "pred": "48",
+        "gold": "48",
+        "retrieved_n": 3,
+        "memory_size": 10,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 10,
+        "correct": true,
+        "pred": "90",
+        "gold": "90",
+        "retrieved_n": 3,
+        "memory_size": 11,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 11,
+        "correct": true,
+        "pred": "10",
+        "gold": "10",
+        "retrieved_n": 3,
+        "memory_size": 12,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 12,
+        "correct": true,
+        "pred": "2",
+        "gold": "2",
+        "retrieved_n": 3,
+        "memory_size": 13,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 13,
+        "correct": true,
+        "pred": "45000",
+        "gold": "45000",
+        "retrieved_n": 3,
+        "memory_size": 14,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 14,
+        "correct": true,
+        "pred": "18",
+        "gold": "18",
+        "retrieved_n": 3,
+        "memory_size": 15,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 15,
+        "correct": true,
+        "pred": "140",
+        "gold": "140",
+        "retrieved_n": 3,
+        "memory_size": 16,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 16,
+        "correct": true,
+        "pred": "17",
+        "gold": "17",
+        "retrieved_n": 3,
+        "memory_size": 17,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 17,
+        "correct": true,
+        "pred": "68",
+        "gold": "68",
+        "retrieved_n": 3,
+        "memory_size": 18,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 18,
+        "correct": true,
+        "pred": "8",
+        "gold": "8",
+        "retrieved_n": 3,
+        "memory_size": 19,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 19,
+        "correct": true,
+        "pred": "14",
+        "gold": "14",
+        "retrieved_n": 3,
+        "memory_size": 20,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 20,
+        "correct": true,
+        "pred": "50",
+        "gold": "50",
+        "retrieved_n": 3,
+        "memory_size": 21,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 21,
+        "correct": true,
+        "pred": "100",
+        "gold": "100",
+        "retrieved_n": 3,
+        "memory_size": 22,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 22,
+        "correct": true,
+        "pred": "125",
+        "gold": "125",
+        "retrieved_n": 3,
+        "memory_size": 23,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 23,
+        "correct": true,
+        "pred": "48",
+        "gold": "48",
+        "retrieved_n": 3,
+        "memory_size": 24,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 24,
+        "correct": true,
+        "pred": "15400",
+        "gold": "15400",
+        "retrieved_n": 3,
+        "memory_size": 25,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 25,
+        "correct": true,
+        "pred": "250",
+        "gold": "250",
+        "retrieved_n": 3,
+        "memory_size": 26,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 26,
+        "correct": true,
+        "pred": "18",
+        "gold": "18",
+        "retrieved_n": 3,
+        "memory_size": 27,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 27,
+        "correct": true,
+        "pred": "1490",
+        "gold": "1490",
+        "retrieved_n": 3,
+        "memory_size": 28,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 28,
+        "correct": true,
+        "pred": "11",
+        "gold": "11",
+        "retrieved_n": 3,
+        "memory_size": 29,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 29,
+        "correct": true,
+        "pred": "106",
+        "gold": "106",
+        "retrieved_n": 3,
+        "memory_size": 30,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 30,
+        "correct": true,
+        "pred": "138",
+        "gold": "138",
+        "retrieved_n": 3,
+        "memory_size": 31,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 31,
+        "correct": true,
+        "pred": "15",
+        "gold": "15",
+        "retrieved_n": 3,
+        "memory_size": 32,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 32,
+        "correct": true,
+        "pred": "4",
+        "gold": "4",
+        "retrieved_n": 3,
+        "memory_size": 33,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 33,
+        "correct": true,
+        "pred": "82",
+        "gold": "82",
+        "retrieved_n": 3,
+        "memory_size": 34,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 34,
+        "correct": true,
+        "pred": "2",
+        "gold": "2",
+        "retrieved_n": 3,
+        "memory_size": 35,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 35,
+        "correct": true,
+        "pred": "51",
+        "gold": "51",
+        "retrieved_n": 3,
+        "memory_size": 36,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 36,
+        "correct": true,
+        "pred": "4",
+        "gold": "4",
+        "retrieved_n": 3,
+        "memory_size": 37,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 37,
+        "correct": true,
+        "pred": "100",
+        "gold": "100",
+        "retrieved_n": 3,
+        "memory_size": 38,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 38,
+        "correct": true,
+        "pred": "25",
+        "gold": "25",
+        "retrieved_n": 3,
+        "memory_size": 39,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 39,
+        "correct": true,
+        "pred": "188",
+        "gold": "188",
+        "retrieved_n": 3,
+        "memory_size": 40,
+        "running_acc": 1.0
+      }
+    ],
+    "summary": {
+      "label": "static",
+      "overall_accuracy": 1.0,
+      "first_half_accuracy": 1.0,
+      "second_half_accuracy": 1.0,
+      "final_memory_size": 40
+    }
+  },
+  "trustmem": {
+    "log": [
+      {
+        "idx": 0,
+        "correct": true,
+        "pred": "52",
+        "gold": "52",
+        "retrieved_n": 0,
+        "memory_size": 1,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 1,
+        "correct": true,
+        "pred": "5",
+        "gold": "5",
+        "retrieved_n": 1,
+        "memory_size": 2,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 2,
+        "correct": true,
+        "pred": "83",
+        "gold": "83",
+        "retrieved_n": 2,
+        "memory_size": 3,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 3,
+        "correct": true,
+        "pred": "10",
+        "gold": "10",
+        "retrieved_n": 3,
+        "memory_size": 4,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 4,
+        "correct": true,
+        "pred": "70",
+        "gold": "70",
+        "retrieved_n": 3,
+        "memory_size": 5,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 5,
+        "correct": true,
+        "pred": "36",
+        "gold": "36",
+        "retrieved_n": 3,
+        "memory_size": 6,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 6,
+        "correct": true,
+        "pred": "48",
+        "gold": "48",
+        "retrieved_n": 3,
+        "memory_size": 7,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 7,
+        "correct": true,
+        "pred": "16",
+        "gold": "16",
+        "retrieved_n": 3,
+        "memory_size": 8,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 8,
+        "correct": true,
+        "pred": "8",
+        "gold": "8",
+        "retrieved_n": 3,
+        "memory_size": 9,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 9,
+        "correct": true,
+        "pred": "48",
+        "gold": "48",
+        "retrieved_n": 3,
+        "memory_size": 10,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 10,
+        "correct": true,
+        "pred": "90",
+        "gold": "90",
+        "retrieved_n": 3,
+        "memory_size": 11,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 11,
+        "correct": true,
+        "pred": "10",
+        "gold": "10",
+        "retrieved_n": 3,
+        "memory_size": 12,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 12,
+        "correct": true,
+        "pred": "2",
+        "gold": "2",
+        "retrieved_n": 3,
+        "memory_size": 13,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 13,
+        "correct": true,
+        "pred": "45000",
+        "gold": "45000",
+        "retrieved_n": 3,
+        "memory_size": 14,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 14,
+        "correct": true,
+        "pred": "18",
+        "gold": "18",
+        "retrieved_n": 3,
+        "memory_size": 15,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 15,
+        "correct": true,
+        "pred": "140",
+        "gold": "140",
+        "retrieved_n": 3,
+        "memory_size": 16,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 16,
+        "correct": true,
+        "pred": "17",
+        "gold": "17",
+        "retrieved_n": 3,
+        "memory_size": 17,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 17,
+        "correct": true,
+        "pred": "68",
+        "gold": "68",
+        "retrieved_n": 3,
+        "memory_size": 18,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 18,
+        "correct": true,
+        "pred": "8",
+        "gold": "8",
+        "retrieved_n": 3,
+        "memory_size": 19,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 19,
+        "correct": true,
+        "pred": "14",
+        "gold": "14",
+        "retrieved_n": 3,
+        "memory_size": 20,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 20,
+        "correct": true,
+        "pred": "50",
+        "gold": "50",
+        "retrieved_n": 3,
+        "memory_size": 21,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 21,
+        "correct": true,
+        "pred": "100",
+        "gold": "100",
+        "retrieved_n": 3,
+        "memory_size": 22,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 22,
+        "correct": true,
+        "pred": "125",
+        "gold": "125",
+        "retrieved_n": 3,
+        "memory_size": 23,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 23,
+        "correct": true,
+        "pred": "48",
+        "gold": "48",
+        "retrieved_n": 3,
+        "memory_size": 24,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 24,
+        "correct": true,
+        "pred": "15400",
+        "gold": "15400",
+        "retrieved_n": 3,
+        "memory_size": 25,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 25,
+        "correct": true,
+        "pred": "250",
+        "gold": "250",
+        "retrieved_n": 3,
+        "memory_size": 26,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 26,
+        "correct": true,
+        "pred": "18",
+        "gold": "18",
+        "retrieved_n": 3,
+        "memory_size": 27,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 27,
+        "correct": true,
+        "pred": "1490",
+        "gold": "1490",
+        "retrieved_n": 3,
+        "memory_size": 28,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 28,
+        "correct": true,
+        "pred": "11",
+        "gold": "11",
+        "retrieved_n": 3,
+        "memory_size": 29,
+        "running_acc": 1.0
+      },
+      {
+        "idx": 29,
+        "correct": false,
+        "pred": "106.12",
+        "gold": "106",
+        "retrieved_n": 3,
+        "memory_size": 30,
+        "running_acc": 0.9666666666666667
+      },
+      {
+        "idx": 30,
+        "correct": true,
+        "pred": "138",
+        "gold": "138",
+        "retrieved_n": 3,
+        "memory_size": 31,
+        "running_acc": 0.967741935483871
+      },
+      {
+        "idx": 31,
+        "correct": true,
+        "pred": "15",
+        "gold": "15",
+        "retrieved_n": 3,
+        "memory_size": 32,
+        "running_acc": 0.96875
+      },
+      {
+        "idx": 32,
+        "correct": true,
+        "pred": "4",
+        "gold": "4",
+        "retrieved_n": 3,
+        "memory_size": 33,
+        "running_acc": 0.9696969696969697
+      },
+      {
+        "idx": 33,
+        "correct": true,
+        "pred": "82",
+        "gold": "82",
+        "retrieved_n": 3,
+        "memory_size": 34,
+        "running_acc": 0.9705882352941176
+      },
+      {
+        "idx": 34,
+        "correct": true,
+        "pred": "2",
+        "gold": "2",
+        "retrieved_n": 3,
+        "memory_size": 35,
+        "running_acc": 0.9714285714285714
+      },
+      {
+        "idx": 35,
+        "correct": true,
+        "pred": "51",
+        "gold": "51",
+        "retrieved_n": 3,
+        "memory_size": 36,
+        "running_acc": 0.9722222222222222
+      },
+      {
+        "idx": 36,
+        "correct": true,
+        "pred": "4",
+        "gold": "4",
+        "retrieved_n": 3,
+        "memory_size": 37,
+        "running_acc": 0.972972972972973
+      },
+      {
+        "idx": 37,
+        "correct": true,
+        "pred": "100",
+        "gold": "100",
+        "retrieved_n": 3,
+        "memory_size": 38,
+        "running_acc": 0.9736842105263158
+      },
+      {
+        "idx": 38,
+        "correct": true,
+        "pred": "25",
+        "gold": "25",
+        "retrieved_n": 3,
+        "memory_size": 39,
+        "running_acc": 0.9743589743589743
+      },
+      {
+        "idx": 39,
+        "correct": true,
+        "pred": "188",
+        "gold": "188",
+        "retrieved_n": 3,
+        "memory_size": 40,
+        "running_acc": 0.975
+      }
+    ],
+    "summary": {
+      "label": "trustmem",
+      "overall_accuracy": 0.975,
+      "first_half_accuracy": 1.0,
+      "second_half_accuracy": 0.95,
+      "final_memory_size": 40
+    }
+  }
+}
