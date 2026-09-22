@@ -1,5 +1,7 @@
 # Adaptive-Trust-Based-Memory-Consolidation-for-Self-Evolving-Multi-Agent-LLM-Systems
-TrustMem-Agent is an advanced multi-agent architecture designed for lifelong self-evolving LLMs. By replacing unweighted memory storage with dynamic Trust Scoring ($T$), Importance Prioritization ($I$), and Adaptive Forgetting ($F$), the system eliminates noisy or unverified reflections, prevents hallucination propagation, and maintains $O(1)$ memory retrieval efficiency across sequential reasoning tasks (GSM8K, HumanEval).
+ATMC (Adaptive Trust-based Memory Consolidation) is an advanced multi-agent architecture designed for lifelong self-evolving LLMs. By replacing unweighted memory storage with dynamic Trust Scoring ($T$), Importance Prioritization ($I$), and Adaptive Forgetting ($F$), the system eliminates noisy or unverified reflections, prevents hallucination propagation, and maintains $O(1)$ memory retrieval efficiency across sequential reasoning tasks (GSM8K, HumanEval).
+
+> **Naming note:** this project was originally developed under the working name "TrustMem-Agent." It has been renamed to ATMC to avoid collision with an unrelated prior-art paper, *TRUSTMEM: Learning Trustworthy Memory Consolidation for LLM Agents with Long-Term Memory* (arXiv 2606.25161), which targets a different problem (RL-trained verification of memory-editing operations) but shares the name and the general subfield.
 
 # Adaptive Memory Prioritization for Self-Evolving Agentic AI
 
