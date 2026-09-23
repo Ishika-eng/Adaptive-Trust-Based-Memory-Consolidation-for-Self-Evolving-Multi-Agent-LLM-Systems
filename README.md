@@ -1,5 +1,12 @@
 # Adaptive-Trust-Based-Memory-Consolidation-for-Self-Evolving-Multi-Agent-LLM-Systems
-ATMC (Adaptive Trust-based Memory Consolidation) is an advanced multi-agent architecture designed for lifelong self-evolving LLMs. By replacing unweighted memory storage with dynamic Trust Scoring ($T$), Importance Prioritization ($I$), and Adaptive Forgetting ($F$), the system eliminates noisy or unverified reflections, prevents hallucination propagation, and maintains $O(1)$ memory retrieval efficiency across sequential reasoning tasks (GSM8K, HumanEval).
+
+## Project Goal
+
+This project builds a **self-evolving multi-agent LLM system**: an agent that autonomously plans, acts, checks its own work, and improves over time by curating what it remembers and trusts.
+
+That full agent is **not built yet**. What exists today, validated, is its **memory subsystem — ATMC (Adaptive Trust-based Memory Consolidation)**. ATMC is the component responsible for one specific job: deciding which past experiences an agent should trust, keep, and retrieve, versus discard — using dynamic Trust Scoring ($T$), Importance Prioritization ($I$), and Adaptive Forgetting ($F$) instead of storing every reflection unweighted forever.
+
+**The relationship, stated plainly:** ATMC is the memory-governance piece a self-evolving agent needs. It is one component, not the whole agent — the agent also needs planning, tool use, and autonomous goal-setting, none of which exist yet (see Roadmap). Do not read "ATMC" and "the self-evolving agent" as the same thing anywhere in this document — where they overlap, it's called out explicitly.
 
 > **Naming note:** this project was originally developed under the working name "TrustMem-Agent." It has been renamed to ATMC to avoid collision with an unrelated prior-art paper, *TRUSTMEM: Learning Trustworthy Memory Consolidation for LLM Agents with Long-Term Memory* (arXiv 2606.25161), which targets a different problem (RL-trained verification of memory-editing operations) but shares the name and the general subfield.
 
@@ -7,25 +14,34 @@ ATMC (Adaptive Trust-based Memory Consolidation) is an advanced multi-agent arch
 
 ## Implementation Status
 
-Everything below this point (Sections 1-15) is the full research design. This section states, plainly, how much of it currently exists in code.
+### Part A — ATMC (the memory subsystem): validated, working
 
-**Validated — a real, reproducible experimental result:**
+**A real, reproducible experimental result:**
 Trust-gated memory retrieval reduces exposure to deliberately planted incorrect memories by **8.0× (± 0.54 across 3 seeds)** versus a static "remember everything" baseline, with no accuracy cost, on GSM8K. This is direct support for Hypothesis H1 (Section 11). Full logs: [`pilot/results/`](pilot/results/).
 
-**Built and working:**
+**Built and working, all of it ATMC-scoped (Sections 2, 3, 5 below):**
 - Core scoring math — Trust, Importance, Decay, Composite Score (Section 2) → [`pilot/memory.py`](pilot/memory.py)
-- Memory store with the hard verification gate, trust-gated composite retrieval, and citation-conditioned trust updates (i.e. a memory's trust only moves if the model says it actually relied on it — closes a credit-assignment gap found during testing) → [`pilot/stores.py`](pilot/stores.py)
-- A deterministic Checker Agent (ground-truth comparison, one of the mechanisms Section 1.2 allows) and a Reasoning Agent (Gemini) → [`pilot/llm.py`](pilot/llm.py)
+- Memory store with the hard verification gate, trust-gated composite retrieval, and citation-conditioned trust updates (a memory's trust only moves if the model says it actually relied on it — closes a credit-assignment gap found during testing) → [`pilot/stores.py`](pilot/stores.py)
+- A deterministic Checker (ground-truth comparison, one of the mechanisms Section 1.2 allows) and a Reasoning Agent (Gemini) calling into ATMC → [`pilot/llm.py`](pilot/llm.py)
 - Pilot scripts reproducing the result above across multiple seeds → [`pilot/run_pilot.py`](pilot/run_pilot.py), [`pilot/run_poison_pilot.py`](pilot/run_poison_pilot.py)
-- A full-stack demo app (FastAPI backend + React frontend) running this mechanism live, interactively → [`app/`](app/)
+- A full-stack demo app (FastAPI backend + React frontend) running ATMC live, interactively, so the result above can be watched rather than just read → [`app/`](app/)
 
-**Not yet built** (tracked in the Roadmap below):
-- A separate Planner Agent — the Reasoning Agent currently solves directly, so the 4-agent architecture in Section 1 is not yet fully realized as distinct agents
+**Not yet built, still ATMC-scoped:**
 - Memory Compression — the fourth pillar (Section 8.4) has no implementation yet
-- Benchmarks beyond GSM8K (HumanEval/MBPP planned)
 - The full ablation matrix (Section 8) — only 2 of 4 conditions are currently comparable
+- Benchmarks beyond GSM8K (HumanEval/MBPP planned)
 - Baselines beyond static memory (Reflexion-style, SAGE-style, A-MEM — Section 9)
-- Persistent storage, tool/code execution, and autonomous curriculum generation — needed for the "self-evolving agent" framing in this repository's title, which is distinct from ATMC (the memory-consolidation mechanism) itself. **ATMC is the validated core memory subsystem a self-evolving agent needs — it is not, on its own, a complete self-evolving agent.**
+
+### Part B — The self-evolving agent (built around ATMC): not started
+
+Everything an agent needs *beyond* memory governance is currently missing entirely:
+- A separate Planner Agent — right now the Reasoning Agent solves each task directly with no decomposition step
+- Tool/code execution — the agent cannot currently act in any environment, only answer isolated questions
+- Persistent storage — memory currently lives in a Python process and resets on restart
+- Autonomous curriculum generation — tasks are currently fed in from a fixed dataset in a fixed order, not chosen by the agent itself
+- A reusable skill library — memories are stored as raw text, not consolidated into reusable procedures
+
+**In short: Part A is a validated result. Part B is a 3-month build plan, starting from zero, using Part A as its foundation.**
 
 ## Getting Started
 
@@ -58,6 +74,8 @@ Three-month plan from the validated core (ATMC) to the full self-evolving agent 
 | **Month 3** | Autonomy | Self-directed curriculum, a reusable skill library (closes the Compression gap), final full evaluation, paper write-up |
 
 ---
+
+> Everything from here on (Sections 1-15) is the full target design — Part A (ATMC) and Part B (the rest of the self-evolving agent) combined. Section headings below aren't separately marked as "done" vs. "not done" again; refer back to the Implementation Status above for that breakdown.
 
 # Adaptive Memory Prioritization for Self-Evolving Agentic AI
 
