@@ -3,6 +3,62 @@ ATMC (Adaptive Trust-based Memory Consolidation) is an advanced multi-agent arch
 
 > **Naming note:** this project was originally developed under the working name "TrustMem-Agent." It has been renamed to ATMC to avoid collision with an unrelated prior-art paper, *TRUSTMEM: Learning Trustworthy Memory Consolidation for LLM Agents with Long-Term Memory* (arXiv 2606.25161), which targets a different problem (RL-trained verification of memory-editing operations) but shares the name and the general subfield.
 
+---
+
+## Implementation Status
+
+Everything below this point (Sections 1-15) is the full research design. This section states, plainly, how much of it currently exists in code.
+
+**Validated — a real, reproducible experimental result:**
+Trust-gated memory retrieval reduces exposure to deliberately planted incorrect memories by **8.0× (± 0.54 across 3 seeds)** versus a static "remember everything" baseline, with no accuracy cost, on GSM8K. This is direct support for Hypothesis H1 (Section 11). Full logs: [`pilot/results/`](pilot/results/).
+
+**Built and working:**
+- Core scoring math — Trust, Importance, Decay, Composite Score (Section 2) → [`pilot/memory.py`](pilot/memory.py)
+- Memory store with the hard verification gate, trust-gated composite retrieval, and citation-conditioned trust updates (i.e. a memory's trust only moves if the model says it actually relied on it — closes a credit-assignment gap found during testing) → [`pilot/stores.py`](pilot/stores.py)
+- A deterministic Checker Agent (ground-truth comparison, one of the mechanisms Section 1.2 allows) and a Reasoning Agent (Gemini) → [`pilot/llm.py`](pilot/llm.py)
+- Pilot scripts reproducing the result above across multiple seeds → [`pilot/run_pilot.py`](pilot/run_pilot.py), [`pilot/run_poison_pilot.py`](pilot/run_poison_pilot.py)
+- A full-stack demo app (FastAPI backend + React frontend) running this mechanism live, interactively → [`app/`](app/)
+
+**Not yet built** (tracked in the Roadmap below):
+- A separate Planner Agent — the Reasoning Agent currently solves directly, so the 4-agent architecture in Section 1 is not yet fully realized as distinct agents
+- Memory Compression — the fourth pillar (Section 8.4) has no implementation yet
+- Benchmarks beyond GSM8K (HumanEval/MBPP planned)
+- The full ablation matrix (Section 8) — only 2 of 4 conditions are currently comparable
+- Baselines beyond static memory (Reflexion-style, SAGE-style, A-MEM — Section 9)
+- Persistent storage, tool/code execution, and autonomous curriculum generation — needed for the "self-evolving agent" framing in this repository's title, which is distinct from ATMC (the memory-consolidation mechanism) itself. **ATMC is the validated core memory subsystem a self-evolving agent needs — it is not, on its own, a complete self-evolving agent.**
+
+## Getting Started
+
+**Run the pilot experiments:**
+```bash
+cd pilot
+python3 -m venv .venv && source .venv/bin/activate
+pip install google-genai python-dotenv scikit-learn numpy
+echo "GEMINI_API_KEY=your_key_here" > ../.env
+python3 run_poison_pilot.py
+```
+
+**Run the demo app:**
+```bash
+# backend (from repo root)
+pilot/.venv/bin/uvicorn app.backend.main:app --port 8000
+
+# frontend (separate terminal)
+cd app/frontend && npm install && npm run dev
+```
+
+## Roadmap
+
+Three-month plan from the validated core (ATMC) to the full self-evolving agent described in this document.
+
+| Phase | Focus | Key additions |
+|---|---|---|
+| **Month 1** | Harden the core | Full ablation matrix, more seeds, self-reflection generation, a real Planner Agent |
+| **Month 2** | Give the agent something to act in | Second benchmark + code-execution Checker, sandboxed tool execution, persistent storage |
+| **Month 3** | Autonomy | Self-directed curriculum, a reusable skill library (closes the Compression gap), final full evaluation, paper write-up |
+
+---
+
 # Adaptive Memory Prioritization for Self-Evolving Agentic AI
 
 > **Adaptive Memory Prioritization using Dynamic Reflection and Trust Scoring**
@@ -905,7 +961,32 @@ The complete system can be summarized as:
 
 # 14. Repository Structure
 
-A recommended implementation structure is:
+## 14.1 Current Structure
+
+What actually exists in this repository right now:
+
+```text
+.
+├── README.md
+├── .gitignore
+│
+├── pilot/                        # engine + experiments
+│   ├── memory.py                 # Section 2: trust/importance/decay/composite math
+│   ├── stores.py                 # StaticMemoryStore, AdaptiveTrustStore (ATMC)
+│   ├── llm.py                    # Reasoning Agent (Gemini) + deterministic Checker
+│   ├── run_pilot.py              # organic-mistake pilot (ceiling-effect finding)
+│   ├── run_poison_pilot.py       # poison-memory pilot (the validated 8.0x result)
+│   ├── data/gsm8k_test.jsonl     # benchmark data
+│   └── results/                  # experiment logs, by seed, incl. pre/post-fix history
+│
+└── app/                           # full-stack demo
+    ├── backend/main.py            # FastAPI wrapper around pilot/ engine
+    └── frontend/                  # React (Vite) — live static-vs-ATMC comparison UI
+```
+
+## 14.2 Target Structure (by end of Month 3)
+
+The fuller structure this project is converging toward, as the roadmap above closes each gap:
 
 ```text
 adaptive-memory-agent/
