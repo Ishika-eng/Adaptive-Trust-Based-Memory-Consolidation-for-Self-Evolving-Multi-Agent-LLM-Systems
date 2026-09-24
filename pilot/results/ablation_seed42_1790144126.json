@@ -1,0 +1,1191 @@
+{
+  "n_tasks": 40,
+  "seed": 42,
+  "n_poison_seeded": 14,
+  "results": {
+    "full_system": {
+      "log": [
+        {
+          "idx": 0,
+          "correct": true,
+          "n_poison_retrieved": 3,
+          "poison_exposure_cumulative": 3,
+          "memory_size": 13
+        },
+        {
+          "idx": 1,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 5,
+          "memory_size": 12
+        },
+        {
+          "idx": 2,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 13
+        },
+        {
+          "idx": 3,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 14
+        },
+        {
+          "idx": 4,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 15
+        },
+        {
+          "idx": 5,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 16
+        },
+        {
+          "idx": 6,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 17
+        },
+        {
+          "idx": 7,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 18
+        },
+        {
+          "idx": 8,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 19
+        },
+        {
+          "idx": 9,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 18
+        },
+        {
+          "idx": 10,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 19
+        },
+        {
+          "idx": 11,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 20
+        },
+        {
+          "idx": 12,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 21
+        },
+        {
+          "idx": 13,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 22
+        },
+        {
+          "idx": 14,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 23
+        },
+        {
+          "idx": 15,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 24
+        },
+        {
+          "idx": 16,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 25
+        },
+        {
+          "idx": 17,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 24
+        },
+        {
+          "idx": 18,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 25
+        },
+        {
+          "idx": 19,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 26
+        },
+        {
+          "idx": 20,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 27
+        },
+        {
+          "idx": 21,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 28
+        },
+        {
+          "idx": 22,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 29
+        },
+        {
+          "idx": 23,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 30
+        },
+        {
+          "idx": 24,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 31
+        },
+        {
+          "idx": 25,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 30
+        },
+        {
+          "idx": 26,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 31
+        },
+        {
+          "idx": 27,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 32
+        },
+        {
+          "idx": 28,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 33
+        },
+        {
+          "idx": 29,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 34
+        },
+        {
+          "idx": 30,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 35
+        },
+        {
+          "idx": 31,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 36
+        },
+        {
+          "idx": 32,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 37
+        },
+        {
+          "idx": 33,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 36
+        },
+        {
+          "idx": 34,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 37
+        },
+        {
+          "idx": 35,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 38
+        },
+        {
+          "idx": 36,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 8,
+          "memory_size": 39
+        },
+        {
+          "idx": 37,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 8,
+          "memory_size": 40
+        },
+        {
+          "idx": 38,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 8,
+          "memory_size": 41
+        },
+        {
+          "idx": 39,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 9,
+          "memory_size": 42
+        }
+      ],
+      "summary": {
+        "overall_accuracy": 1.0,
+        "total_poison_exposure": 9,
+        "final_memory_size": 42,
+        "n_compressions": 6,
+        "n_poison_laundered": 2
+      },
+      "flags": {
+        "enable_trust": true,
+        "enable_forgetting": true,
+        "enable_compression": true
+      }
+    },
+    "wo_trust": {
+      "log": [
+        {
+          "idx": 0,
+          "correct": true,
+          "n_poison_retrieved": 3,
+          "poison_exposure_cumulative": 3,
+          "memory_size": 13
+        },
+        {
+          "idx": 1,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 5,
+          "memory_size": 12
+        },
+        {
+          "idx": 2,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 13
+        },
+        {
+          "idx": 3,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 8,
+          "memory_size": 14
+        },
+        {
+          "idx": 4,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 10,
+          "memory_size": 15
+        },
+        {
+          "idx": 5,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 12,
+          "memory_size": 16
+        },
+        {
+          "idx": 6,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 13,
+          "memory_size": 17
+        },
+        {
+          "idx": 7,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 14,
+          "memory_size": 18
+        },
+        {
+          "idx": 8,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 14,
+          "memory_size": 19
+        },
+        {
+          "idx": 9,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 15,
+          "memory_size": 18
+        },
+        {
+          "idx": 10,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 15,
+          "memory_size": 19
+        },
+        {
+          "idx": 11,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 15,
+          "memory_size": 20
+        },
+        {
+          "idx": 12,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 15,
+          "memory_size": 21
+        },
+        {
+          "idx": 13,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 16,
+          "memory_size": 22
+        },
+        {
+          "idx": 14,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 16,
+          "memory_size": 23
+        },
+        {
+          "idx": 15,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 16,
+          "memory_size": 24
+        },
+        {
+          "idx": 16,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 16,
+          "memory_size": 25
+        },
+        {
+          "idx": 17,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 24
+        },
+        {
+          "idx": 18,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 25
+        },
+        {
+          "idx": 19,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 26
+        },
+        {
+          "idx": 20,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 27
+        },
+        {
+          "idx": 21,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 28
+        },
+        {
+          "idx": 22,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 29
+        },
+        {
+          "idx": 23,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 30
+        },
+        {
+          "idx": 24,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 31
+        },
+        {
+          "idx": 25,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 30
+        },
+        {
+          "idx": 26,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 18,
+          "memory_size": 31
+        },
+        {
+          "idx": 27,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 18,
+          "memory_size": 32
+        },
+        {
+          "idx": 28,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 18,
+          "memory_size": 33
+        },
+        {
+          "idx": 29,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 18,
+          "memory_size": 34
+        },
+        {
+          "idx": 30,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 19,
+          "memory_size": 35
+        },
+        {
+          "idx": 31,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 19,
+          "memory_size": 36
+        },
+        {
+          "idx": 32,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 19,
+          "memory_size": 37
+        },
+        {
+          "idx": 33,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 19,
+          "memory_size": 36
+        },
+        {
+          "idx": 34,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 19,
+          "memory_size": 37
+        },
+        {
+          "idx": 35,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 20,
+          "memory_size": 38
+        },
+        {
+          "idx": 36,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 21,
+          "memory_size": 39
+        },
+        {
+          "idx": 37,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 21,
+          "memory_size": 40
+        },
+        {
+          "idx": 38,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 21,
+          "memory_size": 41
+        },
+        {
+          "idx": 39,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 22,
+          "memory_size": 42
+        }
+      ],
+      "summary": {
+        "overall_accuracy": 1.0,
+        "total_poison_exposure": 22,
+        "final_memory_size": 42,
+        "n_compressions": 6,
+        "n_poison_laundered": 2
+      },
+      "flags": {
+        "enable_trust": false,
+        "enable_forgetting": true,
+        "enable_compression": true
+      }
+    },
+    "wo_forgetting": {
+      "log": [
+        {
+          "idx": 0,
+          "correct": true,
+          "n_poison_retrieved": 3,
+          "poison_exposure_cumulative": 3,
+          "memory_size": 13
+        },
+        {
+          "idx": 1,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 5,
+          "memory_size": 12
+        },
+        {
+          "idx": 2,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 13
+        },
+        {
+          "idx": 3,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 14
+        },
+        {
+          "idx": 4,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 15
+        },
+        {
+          "idx": 5,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 8,
+          "memory_size": 16
+        },
+        {
+          "idx": 6,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 9,
+          "memory_size": 17
+        },
+        {
+          "idx": 7,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 10,
+          "memory_size": 18
+        },
+        {
+          "idx": 8,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 11,
+          "memory_size": 19
+        },
+        {
+          "idx": 9,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 12,
+          "memory_size": 18
+        },
+        {
+          "idx": 10,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 13,
+          "memory_size": 19
+        },
+        {
+          "idx": 11,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 14,
+          "memory_size": 20
+        },
+        {
+          "idx": 12,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 15,
+          "memory_size": 21
+        },
+        {
+          "idx": 13,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 16,
+          "memory_size": 22
+        },
+        {
+          "idx": 14,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 17,
+          "memory_size": 23
+        },
+        {
+          "idx": 15,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 18,
+          "memory_size": 24
+        },
+        {
+          "idx": 16,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 19,
+          "memory_size": 25
+        },
+        {
+          "idx": 17,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 20,
+          "memory_size": 24
+        },
+        {
+          "idx": 18,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 21,
+          "memory_size": 25
+        },
+        {
+          "idx": 19,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 22,
+          "memory_size": 26
+        },
+        {
+          "idx": 20,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 23,
+          "memory_size": 27
+        },
+        {
+          "idx": 21,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 24,
+          "memory_size": 28
+        },
+        {
+          "idx": 22,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 25,
+          "memory_size": 29
+        },
+        {
+          "idx": 23,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 26,
+          "memory_size": 30
+        },
+        {
+          "idx": 24,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 28,
+          "memory_size": 31
+        },
+        {
+          "idx": 25,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 29,
+          "memory_size": 30
+        },
+        {
+          "idx": 26,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 30,
+          "memory_size": 31
+        },
+        {
+          "idx": 27,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 31,
+          "memory_size": 32
+        },
+        {
+          "idx": 28,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 32,
+          "memory_size": 33
+        },
+        {
+          "idx": 29,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 33,
+          "memory_size": 34
+        },
+        {
+          "idx": 30,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 35,
+          "memory_size": 35
+        },
+        {
+          "idx": 31,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 36,
+          "memory_size": 36
+        },
+        {
+          "idx": 32,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 37,
+          "memory_size": 37
+        },
+        {
+          "idx": 33,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 38,
+          "memory_size": 36
+        },
+        {
+          "idx": 34,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 39,
+          "memory_size": 37
+        },
+        {
+          "idx": 35,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 40,
+          "memory_size": 38
+        },
+        {
+          "idx": 36,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 41,
+          "memory_size": 39
+        },
+        {
+          "idx": 37,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 42,
+          "memory_size": 40
+        },
+        {
+          "idx": 38,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 43,
+          "memory_size": 41
+        },
+        {
+          "idx": 39,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 44,
+          "memory_size": 42
+        }
+      ],
+      "summary": {
+        "overall_accuracy": 1.0,
+        "total_poison_exposure": 44,
+        "final_memory_size": 42,
+        "n_compressions": 6,
+        "n_poison_laundered": 1
+      },
+      "flags": {
+        "enable_trust": true,
+        "enable_forgetting": false,
+        "enable_compression": true
+      }
+    },
+    "wo_compression": {
+      "log": [
+        {
+          "idx": 0,
+          "correct": true,
+          "n_poison_retrieved": 3,
+          "poison_exposure_cumulative": 3,
+          "memory_size": 15
+        },
+        {
+          "idx": 1,
+          "correct": true,
+          "n_poison_retrieved": 2,
+          "poison_exposure_cumulative": 5,
+          "memory_size": 16
+        },
+        {
+          "idx": 2,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 17
+        },
+        {
+          "idx": 3,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 18
+        },
+        {
+          "idx": 4,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 19
+        },
+        {
+          "idx": 5,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 20
+        },
+        {
+          "idx": 6,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 21
+        },
+        {
+          "idx": 7,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 22
+        },
+        {
+          "idx": 8,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 23
+        },
+        {
+          "idx": 9,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 24
+        },
+        {
+          "idx": 10,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 25
+        },
+        {
+          "idx": 11,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 26
+        },
+        {
+          "idx": 12,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 27
+        },
+        {
+          "idx": 13,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 28
+        },
+        {
+          "idx": 14,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 29
+        },
+        {
+          "idx": 15,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 30
+        },
+        {
+          "idx": 16,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 31
+        },
+        {
+          "idx": 17,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 32
+        },
+        {
+          "idx": 18,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 33
+        },
+        {
+          "idx": 19,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 34
+        },
+        {
+          "idx": 20,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 35
+        },
+        {
+          "idx": 21,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 36
+        },
+        {
+          "idx": 22,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 37
+        },
+        {
+          "idx": 23,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 38
+        },
+        {
+          "idx": 24,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 39
+        },
+        {
+          "idx": 25,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 40
+        },
+        {
+          "idx": 26,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 41
+        },
+        {
+          "idx": 27,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 42
+        },
+        {
+          "idx": 28,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 43
+        },
+        {
+          "idx": 29,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 44
+        },
+        {
+          "idx": 30,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 45
+        },
+        {
+          "idx": 31,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 46
+        },
+        {
+          "idx": 32,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 47
+        },
+        {
+          "idx": 33,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 48
+        },
+        {
+          "idx": 34,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 49
+        },
+        {
+          "idx": 35,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 6,
+          "memory_size": 50
+        },
+        {
+          "idx": 36,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 51
+        },
+        {
+          "idx": 37,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 52
+        },
+        {
+          "idx": 38,
+          "correct": true,
+          "n_poison_retrieved": 0,
+          "poison_exposure_cumulative": 7,
+          "memory_size": 53
+        },
+        {
+          "idx": 39,
+          "correct": true,
+          "n_poison_retrieved": 1,
+          "poison_exposure_cumulative": 8,
+          "memory_size": 54
+        }
+      ],
+      "summary": {
+        "overall_accuracy": 1.0,
+        "total_poison_exposure": 8,
+        "final_memory_size": 54,
+        "n_compressions": 0,
+        "n_poison_laundered": 0
+      },
+      "flags": {
+        "enable_trust": true,
+        "enable_forgetting": true,
+        "enable_compression": false
+      }
+    }
+  }
+}

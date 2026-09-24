@@ -62,6 +62,29 @@ def solve(question: str, retrieved_memories: list[str], max_retries: int = 4) ->
     raise RuntimeError(f"Gemini call failed after {max_retries} retries: {last_err}")
 
 
+def summarize(texts: list[str], max_retries: int = 4) -> str:
+    """Memory Compression (README 8.4): merge several raw memory entries into
+    one short consolidated note. Used by AdaptiveTrustStore._compress()."""
+    client = _get_client()
+    joined = "\n\n".join(f"Note {i+1}:\n{t}" for i, t in enumerate(texts))
+    prompt = (
+        "Merge the following past problem-solving notes into a single short "
+        "consolidated note (3-4 sentences) that preserves the key facts, "
+        "problem types, and outcomes from all of them, so it can replace "
+        "them in a memory bank without losing important information.\n\n"
+        f"{joined}\n\nConsolidated note:"
+    )
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            resp = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+            return resp.text.strip()
+        except Exception as e:
+            last_err = e
+            time.sleep(2 ** attempt * 2)
+    raise RuntimeError(f"Gemini summarize call failed after {max_retries} retries: {last_err}")
+
+
 _NUM_RE = re.compile(r"-?\d[\d,]*\.?\d*")
 
 

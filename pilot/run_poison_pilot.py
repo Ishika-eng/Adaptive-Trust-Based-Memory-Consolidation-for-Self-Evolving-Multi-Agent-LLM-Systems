@@ -172,7 +172,8 @@ def main():
     static_log = run_condition(static_store, tasks, vectorizer, poison_texts, "static")
 
     print("\n=== Running ATMC (poisoned) ===")
-    atmc_store = AdaptiveTrustStore()
+    embed_fn = lambda text: vectorizer.transform([text]).toarray()[0]
+    atmc_store = AdaptiveTrustStore(embed_fn=embed_fn, summarize_fn=llm.summarize)
     seed_poison(atmc_store, poison_specs, vectorizer, is_atmc=True)
     atmc_log = run_condition(atmc_store, tasks, vectorizer, poison_texts, "atmc")
 

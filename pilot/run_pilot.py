@@ -112,7 +112,8 @@ def main():
     static_log = run_condition(static_store, tasks, vectorizer, "static")
 
     print("\n=== Running ATMC (proposed) ===")
-    atmc_store = AdaptiveTrustStore()
+    embed_fn = lambda text: vectorizer.transform([text]).toarray()[0]
+    atmc_store = AdaptiveTrustStore(embed_fn=embed_fn, summarize_fn=llm.summarize)
     atmc_log = run_condition(atmc_store, tasks, vectorizer, "atmc")
 
     results = {
