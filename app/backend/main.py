@@ -4,10 +4,9 @@ memory baseline. Wraps the same engine used in the pilot experiments
 the exact poison-memory experiment can be driven live, interactively, for a
 review/demo instead of only from a CLI log.
 
-State (both memory stores, the vectorizer) lives in-process for the lifetime
-of the server -- intentionally no database. This is a demo app, not a
-deployed product: a restart resets the session, which is the same behavior
-as a fresh pilot run and is fine for that purpose.
+Both memory stores persist to a local SQLite file (db.py, app/backend/memory.db)
+after every mutation, and are reloaded from it at startup -- a session's
+memory now survives a server restart instead of resetting every time.
 """
 from __future__ import annotations
 
@@ -26,9 +25,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT / "pilot"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from stores import StaticMemoryStore, AdaptiveTrustStore  # noqa: E402
 import llm  # noqa: E402
+import db  # noqa: E402
 
 app = FastAPI(title="ATMC Demo API")
 app.add_middleware(
@@ -76,17 +77,27 @@ def build_poison_text(question: str, wrong_answer: str) -> str:
     )
 
 
-# ---- persistent session state ----
-STORES = {"static": StaticMemoryStore(), "atmc": AdaptiveTrustStore()}
-STATE = {"poisoned": False, "solved_ids": []}
+def _embed(text: str):
+    return VECTORIZER.transform([text]).toarray()[0]
+
+
+# ---- persistent session state (backed by SQLite, see db.py) ----
+db.init_db()
+STORES = {
+    "static": StaticMemoryStore(),
+    "atmc": AdaptiveTrustStore(embed_fn=_embed, summarize_fn=llm.summarize),
+}
+for _name, _store in STORES.items():
+    db.load_store(_name, _store)
+
+STATE = {
+    "poisoned": any(m.is_poison for s in STORES.values() for m in s.items),
+    "solved_ids": [],
+}
 
 
 class SolveRequest(BaseModel):
     task_id: int
-
-
-def _embed(text: str):
-    return VECTORIZER.transform([text]).toarray()[0]
 
 
 def _run_store(store, task, use_memory: bool):
@@ -139,6 +150,7 @@ def get_state():
         "solved_ids": STATE["solved_ids"],
         "static_memory_size": STORES["static"].size(),
         "atmc_memory_size": STORES["atmc"].size(),
+        "atmc_compressions": STORES["atmc"].n_compressions,
     }
 
 
@@ -149,6 +161,8 @@ def solve(req: SolveRequest):
     time.sleep(4.5)  # stay under Gemini free-tier rate limit between the two calls
     atmc_result = _run_store(STORES["atmc"], task, use_memory=True)
     STATE["solved_ids"].append(req.task_id)
+    db.save_store("static", STORES["static"])
+    db.save_store("atmc", STORES["atmc"])
     return {"question": task["question"], "static": static_result, "atmc": atmc_result}
 
 
@@ -166,15 +180,19 @@ def seed_poison():
             STORES["atmc"].add(text, emb, correct=False, is_poison=True)
             n += 1
     STATE["poisoned"] = True
+    db.save_store("static", STORES["static"])
+    db.save_store("atmc", STORES["atmc"])
     return {"seeded": n, "already_poisoned": False}
 
 
 @app.post("/api/reset")
 def reset():
     STORES["static"] = StaticMemoryStore()
-    STORES["atmc"] = AdaptiveTrustStore()
+    STORES["atmc"] = AdaptiveTrustStore(embed_fn=_embed, summarize_fn=llm.summarize)
     STATE["poisoned"] = False
     STATE["solved_ids"] = []
+    db.clear_store("static")
+    db.clear_store("atmc")
     return {"ok": True}
 
 
@@ -185,11 +203,12 @@ def get_memory(store_name: str):
         return {"error": "unknown store"}
     return [
         {
-            "text": m.text[:200],
+            "text": m.text[:300],
             "trust": round(m.trust, 3),
             "hits": m.hits,
             "is_poison": m.is_poison,
             "correct": m.correct,
+            "created_at_step": m.created_at_step,
         }
         for m in store.items
     ]
@@ -225,4 +244,28 @@ def get_results():
         "seeds": [r["seed"] for r in runs],
         "static": agg("static"),
         "atmc": agg("atmc"),
+    }
+
+
+@app.get("/api/ablation")
+def get_ablation():
+    """Latest 4-way ablation study result (Full System / w/o Trust /
+    w/o Forgetting / w/o Compression), from pilot/run_ablation.py."""
+    results_dir = ROOT / "pilot" / "results"
+    files = sorted(results_dir.glob("ablation_seed*.json"), key=lambda f: f.stat().st_mtime)
+    if not files:
+        return {"conditions": []}
+    latest = json.load(open(files[-1]))
+    conditions = []
+    for name, data in latest["results"].items():
+        conditions.append({
+            "name": name,
+            "flags": data["flags"],
+            **data["summary"],
+        })
+    return {
+        "seed": latest["seed"],
+        "n_tasks": latest["n_tasks"],
+        "n_poison_seeded": latest["n_poison_seeded"],
+        "conditions": conditions,
     }
