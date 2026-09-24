@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { margin:0; background:#ffffff; font-family: -apple-system, 'Segoe UI', Arial, sans-serif; }
+</style></head>
+<body>
+<svg width="1700" height="300" viewBox="0 0 1700 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#495057"/>
+    </marker>
+  </defs>
+  <rect width="1700" height="300" fill="#ffffff"/>
+
+  <!-- 7 step boxes -->
+  <!-- colors cycle through the deck's palette -->
+
+  <!-- Step 1 -->
+  <rect x="15" y="55" width="215" height="190" rx="12" fill="#4c6ef5"/>
+  <circle cx="122" cy="90" r="22" fill="white"/>
+  <text x="122" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#4c6ef5">1</text>
+  <text x="122" y="135" text-anchor="middle" font-size="15" font-weight="700" fill="white">New Question</text>
+  <text x="122" y="160" text-anchor="middle" font-size="11" fill="#dbe4ff">User gives the</text>
+  <text x="122" y="176" text-anchor="middle" font-size="11" fill="#dbe4ff">agent a new task</text>
+  <text x="122" y="192" text-anchor="middle" font-size="11" fill="#dbe4ff">or problem.</text>
+
+  <line x1="230" y1="150" x2="260" y2="150" stroke="#495057" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 2 -->
+  <rect x="265" y="55" width="215" height="190" rx="12" fill="#5c7cfa"/>
+  <circle cx="372" cy="90" r="22" fill="white"/>
+  <text x="372" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#5c7cfa">2</text>
+  <text x="372" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="white">Retrieve Top-3</text>
+  <text x="372" y="148" text-anchor="middle" font-size="14" font-weight="700" fill="white">Memories</text>
+  <text x="372" y="172" text-anchor="middle" font-size="11" fill="#e7ebff">Ranked by the</text>
+  <text x="372" y="188" text-anchor="middle" font-size="11" fill="#e7ebff">composite score (S)</text>
+
+  <line x1="480" y1="150" x2="510" y2="150" stroke="#495057" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 3 -->
+  <rect x="515" y="55" width="215" height="190" rx="12" fill="#748ffc"/>
+  <circle cx="622" cy="90" r="22" fill="white"/>
+  <text x="622" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#748ffc">3</text>
+  <text x="622" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="white">AI Answers</text>
+  <text x="622" y="155" text-anchor="middle" font-size="11" fill="#eaefff">Using the retrieved</text>
+  <text x="622" y="171" text-anchor="middle" font-size="11" fill="#eaefff">memories as</text>
+  <text x="622" y="187" text-anchor="middle" font-size="11" fill="#eaefff">context</text>
+
+  <line x1="730" y1="150" x2="760" y2="150" stroke="#495057" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 4 -->
+  <rect x="765" y="55" width="215" height="190" rx="12" fill="#7048e8"/>
+  <circle cx="872" cy="90" r="22" fill="white"/>
+  <text x="872" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#7048e8">4</text>
+  <text x="872" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="white">Checker Verifies</text>
+  <text x="872" y="155" text-anchor="middle" font-size="11" fill="#e5dbff">Compares the</text>
+  <text x="872" y="171" text-anchor="middle" font-size="11" fill="#e5dbff">answer to ground</text>
+  <text x="872" y="187" text-anchor="middle" font-size="11" fill="#e5dbff">truth</text>
+
+  <line x1="980" y1="150" x2="1010" y2="150" stroke="#495057" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 5 -->
+  <rect x="1015" y="55" width="215" height="190" rx="12" fill="#9775fa"/>
+  <circle cx="1122" cy="90" r="22" fill="white"/>
+  <text x="1122" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#9775fa">5</text>
+  <text x="1122" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="white">Trust Updated</text>
+  <text x="1122" y="155" text-anchor="middle" font-size="11" fill="#f0ebff">Only for memories</text>
+  <text x="1122" y="171" text-anchor="middle" font-size="11" fill="#f0ebff">actually cited</text>
+  <text x="1122" y="187" text-anchor="middle" font-size="11" fill="#f0ebff">as used</text>
+
+  <line x1="1230" y1="150" x2="1260" y2="150" stroke="#495057" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 6 -->
+  <rect x="1265" y="55" width="215" height="190" rx="12" fill="#0ca678"/>
+  <circle cx="1372" cy="90" r="22" fill="white"/>
+  <text x="1372" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#0ca678">6</text>
+  <text x="1372" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="white">Forgetting /</text>
+  <text x="1372" y="148" text-anchor="middle" font-size="14" font-weight="700" fill="white">Compression</text>
+  <text x="1372" y="172" text-anchor="middle" font-size="11" fill="#d3f9e8">Weak memories</text>
+  <text x="1372" y="188" text-anchor="middle" font-size="11" fill="#d3f9e8">pruned or merged</text>
+
+  <line x1="1480" y1="150" x2="1510" y2="150" stroke="#495057" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 7 -->
+  <rect x="1515" y="55" width="215" height="190" rx="12" fill="#2b8a3e"/>
+  <circle cx="1622" cy="90" r="22" fill="white"/>
+  <text x="1622" y="98" text-anchor="middle" font-size="22" font-weight="700" fill="#2b8a3e">7</text>
+  <text x="1622" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="white">Memory Store</text>
+  <text x="1622" y="148" text-anchor="middle" font-size="14" font-weight="700" fill="white">Updated</text>
+  <text x="1622" y="172" text-anchor="middle" font-size="11" fill="#d3f9d8">Ready for the</text>
+  <text x="1622" y="188" text-anchor="middle" font-size="11" fill="#d3f9d8">next task</text>
+
+  <!-- loop-back hint arrow from 7 back to 1 -->
+  <path d="M 1622 245 C 1622 285, 122 285, 122 250" fill="none" stroke="#adb5bd" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <text x="870" y="278" text-anchor="middle" font-size="12" fill="#868e96" font-style="italic">repeats for every new task</text>
+
+</svg>
+</body></html>

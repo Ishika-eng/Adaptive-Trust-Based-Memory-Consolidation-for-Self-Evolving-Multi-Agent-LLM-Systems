@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { margin:0; background:#ffffff; font-family: -apple-system, 'Segoe UI', Arial, sans-serif; }
+</style></head>
+<body>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="800" y="55" text-anchor="middle" font-size="34" font-weight="700" fill="#2b4c8c" font-family="Georgia, 'Times New Roman', serif">ATMC Core Mechanism — The Formulas</text>
+  <text x="800" y="84" text-anchor="middle" font-size="16" fill="#495057">How every stored memory is scored, ranked, and eventually forgotten</text>
+
+  <!-- 2x2 grid of formula boxes -->
+  <!-- Box 1: Trust -->
+  <rect x="60" y="120" width="720" height="200" rx="14" fill="#eef2ff" stroke="#4c6ef5" stroke-width="2"/>
+  <rect x="60" y="120" width="720" height="46" rx="14" fill="#4c6ef5"/>
+  <rect x="60" y="148" width="720" height="18" fill="#4c6ef5"/>
+  <text x="90" y="150" font-size="19" font-weight="700" fill="white">1. TRUST (T)</text>
+  <text x="90" y="205" font-size="20" font-family="Cambria Math, Georgia, serif" fill="#1a1a1a">T(t+1) = T(t) + 0.05  if correct</text>
+  <text x="90" y="234" font-size="20" font-family="Cambria Math, Georgia, serif" fill="#1a1a1a">T(t+1) = T(t) − 0.15  if incorrect</text>
+  <text x="90" y="270" font-size="14" fill="#495057" font-style="italic">Reliable memories slowly earn trust; unreliable</text>
+  <text x="90" y="290" font-size="14" fill="#495057" font-style="italic">ones lose it much faster than they gained it.</text>
+
+  <!-- Box 2: Importance -->
+  <rect x="820" y="120" width="720" height="200" rx="14" fill="#fff4e6" stroke="#f08c00" stroke-width="2"/>
+  <rect x="820" y="120" width="720" height="46" rx="14" fill="#f08c00"/>
+  <rect x="820" y="148" width="720" height="18" fill="#f08c00"/>
+  <text x="850" y="150" font-size="19" font-weight="700" fill="white">2. IMPORTANCE (I)</text>
+  <text x="850" y="215" font-size="20" font-family="Cambria Math, Georgia, serif" fill="#1a1a1a">I = similarity(question, memory)</text>
+  <text x="850" y="245" font-size="20" font-family="Cambria Math, Georgia, serif" fill="#1a1a1a">     × (1 + log(1 + hits))</text>
+  <text x="850" y="280" font-size="14" fill="#495057" font-style="italic">How relevant this memory is right now, boosted</text>
+  <text x="850" y="300" font-size="14" fill="#495057" font-style="italic">slightly by how often it's proven useful before.</text>
+
+  <!-- Box 3: Freshness -->
+  <rect x="60" y="345" width="720" height="200" rx="14" fill="#e6fcf5" stroke="#0ca678" stroke-width="2"/>
+  <rect x="60" y="345" width="720" height="46" rx="14" fill="#0ca678"/>
+  <rect x="60" y="373" width="720" height="18" fill="#0ca678"/>
+  <text x="90" y="375" font-size="19" font-weight="700" fill="white">3. FRESHNESS / DECAY (F)</text>
+  <text x="90" y="440" font-size="20" font-family="Cambria Math, Georgia, serif" fill="#1a1a1a">F(t) = e^(−λ·Δt),   λ = λ₀ / (1 + T + I)</text>
+  <text x="90" y="495" font-size="14" fill="#495057" font-style="italic">Trustworthy, important memories fade slowly.</text>
+  <text x="90" y="515" font-size="14" fill="#495057" font-style="italic">Weak, unreliable memories fade fast — and get pruned.</text>
+
+  <!-- Box 4: Composite -->
+  <rect x="820" y="345" width="720" height="200" rx="14" fill="#f3effe" stroke="#7048e8" stroke-width="2"/>
+  <rect x="820" y="345" width="720" height="46" rx="14" fill="#7048e8"/>
+  <rect x="820" y="373" width="720" height="18" fill="#7048e8"/>
+  <text x="850" y="375" font-size="19" font-weight="700" fill="white">4. COMPOSITE SCORE (S)</text>
+  <text x="850" y="440" font-size="22" font-weight="700" font-family="Cambria Math, Georgia, serif" fill="#1a1a1a">S = 0.4·T + 0.4·I + 0.2·F</text>
+  <text x="850" y="480" font-size="14" fill="#495057" font-style="italic">This single number decides what the AI actually</text>
+  <text x="850" y="500" font-size="14" fill="#495057" font-style="italic">gets shown — the top-3 highest-scoring memories.</text>
+
+  <!-- Verification gate note -->
+  <rect x="60" y="575" width="1480" height="80" rx="12" fill="#fff5f5" stroke="#e03131" stroke-width="2"/>
+  <text x="90" y="608" font-size="16" font-weight="700" fill="#c92a2a">Verification Gate:</text>
+  <text x="280" y="608" font-size="16" fill="#1a1a1a">A memory must clear a minimum trust score (T ≥ 0.30) to ever be stored or retrieved —</text>
+  <text x="90" y="632" font-size="16" fill="#1a1a1a">this blocks clearly unreliable reflections before they can ever mislead a future answer.</text>
+
+  <!-- Bottom summary -->
+  <rect x="60" y="680" width="1480" height="110" rx="12" fill="#f8f9fa" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="800" y="720" text-anchor="middle" font-size="17" font-weight="700" fill="#2b4c8c">No model training required.</text>
+  <text x="800" y="748" text-anchor="middle" font-size="15" fill="#495057">These four formulas run as pure scoring logic layered on top of any off-the-shelf LLM —</text>
+  <text x="800" y="770" text-anchor="middle" font-size="15" fill="#495057">the model's own weights are never changed; only what it's shown from memory evolves.</text>
+
+  <text x="800" y="830" text-anchor="middle" font-size="12" fill="#adb5bd">η = reward increment · δ = penalty (δ &gt; η by design) · λ₀ = base decay rate</text>
+</svg>
+</body></html>

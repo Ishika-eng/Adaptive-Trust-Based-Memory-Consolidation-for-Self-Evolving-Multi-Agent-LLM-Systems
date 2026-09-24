@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body { margin:0; background:#ffffff; font-family: -apple-system, 'Segoe UI', Arial, sans-serif; }
+</style></head>
+<body>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#495057"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#4c6ef5"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#7048e8"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="800" y="42" text-anchor="middle" font-size="30" font-weight="700" fill="#1a1a1a">Complete System Architecture — Self-Evolving Coding Assistant</text>
+  <text x="800" y="68" text-anchor="middle" font-size="15" fill="#6b7280">ATMC (Adaptive Trust-based Memory Consolidation) as the core memory subsystem within the full agent loop</text>
+
+  <!-- ===== INFERENCE LOOP band ===== -->
+  <rect x="40" y="100" width="1520" height="230" rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <text x="70" y="130" font-size="17" font-weight="700" fill="#3730a3">INFERENCE LOOP — solving the current task</text>
+
+  <!-- 1. Goal -->
+  <rect x="65" y="155" width="230" height="150" rx="10" fill="#4c6ef5"/>
+  <text x="180" y="185" text-anchor="middle" font-size="15" font-weight="700" fill="white">1. Goal / Task</text>
+  <text x="180" y="207" text-anchor="middle" font-size="12" fill="#dbe4ff">Coding task or</text>
+  <text x="180" y="223" text-anchor="middle" font-size="12" fill="#dbe4ff">problem statement</text>
+  <text x="180" y="248" text-anchor="middle" font-size="12" fill="#dbe4ff">received or chosen</text>
+  <text x="180" y="264" text-anchor="middle" font-size="12" fill="#dbe4ff">by the Curriculum</text>
+
+  <!-- arrow 1->2 -->
+  <line x1="295" y1="230" x2="345" y2="230" stroke="#4c6ef5" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- 2. Planner -->
+  <rect x="350" y="155" width="230" height="150" rx="10" fill="#4c6ef5"/>
+  <text x="465" y="185" text-anchor="middle" font-size="15" font-weight="700" fill="white">2. Planner</text>
+  <text x="465" y="207" text-anchor="middle" font-size="12" fill="#dbe4ff">Breaks the goal</text>
+  <text x="465" y="223" text-anchor="middle" font-size="12" fill="#dbe4ff">into concrete,</text>
+  <text x="465" y="239" text-anchor="middle" font-size="12" fill="#dbe4ff">executable</text>
+  <text x="465" y="255" text-anchor="middle" font-size="12" fill="#dbe4ff">subtasks</text>
+
+  <!-- arrow 2->3 -->
+  <line x1="580" y1="230" x2="630" y2="230" stroke="#4c6ef5" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- 3. Memory Retrieval -->
+  <rect x="635" y="155" width="240" height="150" rx="10" fill="#4c6ef5"/>
+  <text x="755" y="185" text-anchor="middle" font-size="15" font-weight="700" fill="white">3. Memory Retrieval</text>
+  <text x="755" y="207" text-anchor="middle" font-size="12" fill="#dbe4ff">Trust-gated, composite-</text>
+  <text x="755" y="223" text-anchor="middle" font-size="12" fill="#dbe4ff">score ranked search</text>
+  <text x="755" y="245" text-anchor="middle" font-size="12" fill="#dbe4ff">against the ATMC</text>
+  <text x="755" y="261" text-anchor="middle" font-size="12" fill="#dbe4ff">Memory Store ↓</text>
+
+  <!-- arrow 3->4 -->
+  <line x1="875" y1="230" x2="925" y2="230" stroke="#4c6ef5" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- 4. Reasoning Agent -->
+  <rect x="930" y="155" width="240" height="150" rx="10" fill="#4c6ef5"/>
+  <text x="1050" y="185" text-anchor="middle" font-size="15" font-weight="700" fill="white">4. Reasoning Agent</text>
+  <text x="1050" y="207" text-anchor="middle" font-size="12" fill="#dbe4ff">LLM produces a</text>
+  <text x="1050" y="223" text-anchor="middle" font-size="12" fill="#dbe4ff">candidate solution using</text>
+  <text x="1050" y="239" text-anchor="middle" font-size="12" fill="#dbe4ff">the plan + retrieved</text>
+  <text x="1050" y="255" text-anchor="middle" font-size="12" fill="#dbe4ff">memories</text>
+
+  <!-- arrow 4->5 -->
+  <line x1="1170" y1="230" x2="1220" y2="230" stroke="#4c6ef5" stroke-width="2.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- 5. Actor -->
+  <rect x="1225" y="155" width="235" height="150" rx="10" fill="#4c6ef5"/>
+  <text x="1342" y="185" text-anchor="middle" font-size="15" font-weight="700" fill="white">5. Actor</text>
+  <text x="1342" y="207" text-anchor="middle" font-size="12" fill="#dbe4ff">Executes generated</text>
+  <text x="1342" y="223" text-anchor="middle" font-size="12" fill="#dbe4ff">code in a sandboxed</text>
+  <text x="1342" y="239" text-anchor="middle" font-size="12" fill="#dbe4ff">environment — the</text>
+  <text x="1342" y="255" text-anchor="middle" font-size="12" fill="#dbe4ff">agent actually acts</text>
+
+  <!-- down arrow from Actor to Checker -->
+  <line x1="1342" y1="305" x2="1342" y2="345" stroke="#7048e8" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+
+  <!-- ===== GOVERNANCE LOOP band ===== -->
+  <rect x="40" y="355" width="1520" height="230" rx="14" fill="#f3effe" stroke="#d8b4fe" stroke-width="1.5"/>
+  <text x="70" y="385" font-size="17" font-weight="700" fill="#6b21a8">GOVERNANCE LOOP — verifying and learning from the result</text>
+
+  <!-- 6. Checker -->
+  <rect x="1225" y="410" width="235" height="150" rx="10" fill="#7048e8"/>
+  <text x="1342" y="440" text-anchor="middle" font-size="15" font-weight="700" fill="white">6. Checker</text>
+  <text x="1342" y="462" text-anchor="middle" font-size="12" fill="#e5dbff">Verifies the outcome —</text>
+  <text x="1342" y="478" text-anchor="middle" font-size="12" fill="#e5dbff">ground truth match or</text>
+  <text x="1342" y="494" text-anchor="middle" font-size="12" fill="#e5dbff">test-case pass/fail</text>
+
+  <!-- arrow 6->7 (leftward) -->
+  <line x1="1225" y1="485" x2="1175" y2="485" stroke="#7048e8" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+
+  <!-- 7. Reflection -->
+  <rect x="935" y="410" width="235" height="150" rx="10" fill="#7048e8"/>
+  <text x="1052" y="440" text-anchor="middle" font-size="15" font-weight="700" fill="white">7. Reflection</text>
+  <text x="1052" y="462" text-anchor="middle" font-size="12" fill="#e5dbff">Turns the outcome into</text>
+  <text x="1052" y="478" text-anchor="middle" font-size="12" fill="#e5dbff">a real lesson — what</text>
+  <text x="1052" y="494" text-anchor="middle" font-size="12" fill="#e5dbff">happened, and why</text>
+
+  <!-- arrow 7->8 (leftward) -->
+  <line x1="935" y1="485" x2="885" y2="485" stroke="#7048e8" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+
+  <!-- 8. Update Memory -->
+  <rect x="645" y="410" width="240" height="150" rx="10" fill="#7048e8"/>
+  <text x="765" y="440" text-anchor="middle" font-size="15" font-weight="700" fill="white">8. Update Memory</text>
+  <text x="765" y="462" text-anchor="middle" font-size="12" fill="#e5dbff">Trust update, adaptive</text>
+  <text x="765" y="478" text-anchor="middle" font-size="12" fill="#e5dbff">forgetting, and</text>
+  <text x="765" y="494" text-anchor="middle" font-size="12" fill="#e5dbff">compression applied</text>
+  <text x="765" y="510" text-anchor="middle" font-size="12" fill="#e5dbff">to the Memory Store ↑</text>
+
+  <!-- arrow 8->9 (leftward) -->
+  <line x1="645" y1="485" x2="595" y2="485" stroke="#7048e8" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+
+  <!-- 9. Curriculum -->
+  <rect x="355" y="410" width="235" height="150" rx="10" fill="#7048e8"/>
+  <text x="472" y="440" text-anchor="middle" font-size="15" font-weight="700" fill="white">9. Curriculum</text>
+  <text x="472" y="462" text-anchor="middle" font-size="12" fill="#e5dbff">Chooses the next goal</text>
+  <text x="472" y="478" text-anchor="middle" font-size="12" fill="#e5dbff">autonomously, based on</text>
+  <text x="472" y="494" text-anchor="middle" font-size="12" fill="#e5dbff">current memory state</text>
+
+  <!-- loop back arrow: Curriculum -> Goal (down and around) -->
+  <path d="M 355 460 L 180 460 L 180 355" fill="none" stroke="#7048e8" stroke-width="2.5" marker-end="url(#arrowPurple)"/>
+  <text x="230" y="450" font-size="11" fill="#6b21a8" font-style="italic">next task</text>
+
+  <!-- ===== Central Memory Store hub ===== -->
+  <rect x="640" y="620" width="320" height="230" rx="14" fill="#2f9e44" fill-opacity="0.08" stroke="#2f9e44" stroke-width="2"/>
+  <text x="800" y="648" text-anchor="middle" font-size="16" font-weight="700" fill="#2b8a3e">ATMC MEMORY STORE</text>
+
+  <rect x="660" y="662" width="130" height="55" rx="8" fill="#2f9e44"/>
+  <text x="725" y="684" text-anchor="middle" font-size="12" font-weight="700" fill="white">Trust (T)</text>
+  <text x="725" y="700" text-anchor="middle" font-size="10" fill="#d3f9d8">verified outcomes</text>
+
+  <rect x="810" y="662" width="130" height="55" rx="8" fill="#2f9e44"/>
+  <text x="875" y="684" text-anchor="middle" font-size="12" font-weight="700" fill="white">Importance (I)</text>
+  <text x="875" y="700" text-anchor="middle" font-size="10" fill="#d3f9d8">relevance + hits</text>
+
+  <rect x="660" y="727" width="130" height="55" rx="8" fill="#2f9e44"/>
+  <text x="725" y="749" text-anchor="middle" font-size="12" font-weight="700" fill="white">Forgetting (F)</text>
+  <text x="725" y="765" text-anchor="middle" font-size="10" fill="#d3f9d8">adaptive decay</text>
+
+  <rect x="810" y="727" width="130" height="55" rx="8" fill="#2f9e44"/>
+  <text x="875" y="749" text-anchor="middle" font-size="12" font-weight="700" fill="white">Compression</text>
+  <text x="875" y="765" text-anchor="middle" font-size="10" fill="#d3f9d8">merge &amp; consolidate</text>
+
+  <text x="800" y="812" text-anchor="middle" font-size="12" fill="#2b8a3e">sits on top of —</text>
+  <text x="800" y="832" text-anchor="middle" font-size="13" font-weight="700" fill="#2b8a3e">10. Persistence (long-term storage across sessions)</text>
+
+  <!-- connectors: Memory Store <-> Retrieval (up) and <-> Update Memory (up) -->
+  <path d="M 755 620 L 755 305" fill="none" stroke="#2f9e44" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <text x="770" y="470" font-size="11" fill="#2b8a3e" transform="rotate(-90 770 470)">reads from</text>
+
+  <path d="M 850 620 L 850 560" fill="none" stroke="#2f9e44" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <path d="M 765 560 L 800 560 L 800 620" fill="none" stroke="#2f9e44" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <text x="900" y="600" font-size="11" fill="#2b8a3e">writes to</text>
+
+  <!-- legend -->
+  <rect x="1225" y="640" width="18" height="18" fill="#4c6ef5"/>
+  <text x="1250" y="654" font-size="12" fill="#374151">Inference Loop (executes the task)</text>
+  <rect x="1225" y="668" width="18" height="18" fill="#7048e8"/>
+  <text x="1250" y="682" font-size="12" fill="#374151">Governance Loop (verifies &amp; learns)</text>
+  <rect x="1225" y="696" width="18" height="18" fill="#2f9e44" fill-opacity="0.25" stroke="#2f9e44"/>
+  <text x="1250" y="710" font-size="12" fill="#374151">Memory subsystem (ATMC)</text>
+
+  <text x="800" y="880" text-anchor="middle" font-size="12" fill="#9ca3af">The LLM itself is never retrained — the system evolves entirely through its external, continuously updated memory.</text>
+</svg>
+</body></html>
