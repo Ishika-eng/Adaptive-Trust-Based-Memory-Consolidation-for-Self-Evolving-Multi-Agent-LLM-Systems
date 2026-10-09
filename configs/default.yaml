@@ -1,0 +1,55 @@
+# Single source of truth for every tunable in ATMC. Scripts and the demo app
+# load this file; each results JSON stores a snapshot of the config it ran with,
+# so any experiment can be reproduced from its own output file.
+
+model:
+  name: gemini-3.5-flash-lite
+  temperature: 0.0            # README 4.2: deterministic reasoning where supported
+  max_retries: 4
+  request_interval_s: 4.5     # pacing for the free tier (15 requests/min)
+
+embedding:
+  backend: fastembed          # fastembed (local) | gemini (API) | tfidf (legacy baseline)
+  model: BAAI/bge-small-en-v1.5      # fastembed model id
+  gemini_model: gemini-embedding-001 # used only when backend: gemini
+
+retrieval:
+  top_k: 3
+
+trust:
+  initial: 0.5                # starting trust before the verification check
+  minimum: 0.30               # T_min: verification gate + retrieval filter
+  reward: 0.05                # eta
+  penalty: 0.15               # delta (must exceed reward)
+
+decay:
+  lambda_0: 0.1               # base decay rate
+  alpha: 1.0                  # trust contribution to slowing decay
+  beta: 1.0                   # importance contribution to slowing decay
+  prune_every: 10             # additions between prune passes
+  prune_min_retention: 0.05   # prune when retention factor F falls to this
+
+composite:                    # must sum to 1.0
+  w_trust: 0.4
+  w_importance: 0.4
+  w_decay: 0.2
+
+compression:
+  every: 8                    # additions between compression passes
+  batch_size: 3               # memories merged into one summary
+  min_age_steps: 5            # only memories at least this old are candidates
+
+pillars:                      # ablation switches (Importance is never switched off)
+  trust: true
+  forgetting: true
+  compression: true
+
+evaluation:
+  dataset: pilot/data/gsm8k_test.jsonl
+  n_tasks: 40
+  seeds: [42, 123, 456]
+  poison_every: 3             # poison every k-th task in the sequence
+
+app:
+  n_sample_tasks: 20          # size of the fixed question pool in the demo
+  sample_seed: 42

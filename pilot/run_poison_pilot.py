@@ -23,8 +23,6 @@ its trust rewarded whenever the model succeeded anyway).
 from __future__ import annotations
 
 import json
-import os
-import random
 import sys
 import time
 from pathlib import Path
@@ -32,54 +30,18 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-from stores import StaticMemoryStore, AdaptiveTrustStore
 import llm
+from config import load_experiment_config
+from embeddings import make_embedder
+from factory import build_atmc, build_static
+from tasks import build_poison_specs, load_tasks
 
-N_TASKS = int(os.environ.get("PILOT_N_TASKS", "40"))
-TOP_K = 3
-SEED = int(os.environ.get("PILOT_SEED", "42"))
-POISON_EVERY = 3  # poison every 3rd task -> ~13 poisoned seeds out of 40
-DATA_PATH = Path(__file__).resolve().parent / "data" / "gsm8k_test.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
-def load_tasks(n: int, seed: int):
-    tasks = []
-    with open(DATA_PATH) as f:
-        for line in f:
-            tasks.append(json.loads(line))
-    rng = random.Random(seed)
-    rng.shuffle(tasks)
-    tasks = tasks[:n]
-    for t in tasks:
-        t["gold"] = t["answer"].split("####")[-1].strip()
-    return tasks
-
-
-def make_wrong_answer(gold: str) -> str:
-    try:
-        g = float(gold.replace(",", ""))
-        wrong = g + (7 if g >= 0 else -7)
-        return str(int(wrong)) if wrong == int(wrong) else str(wrong)
-    except ValueError:
-        return gold + "0"  # fallback for non-numeric gold (shouldn't happen for GSM8K)
-
-
-def build_poison_text(question: str, wrong_answer: str) -> str:
-    return (
-        f"Q: {question}\n"
-        f"A: I worked through the problem and calculated the values step by step. "
-        f"#### {wrong_answer}\n"
-        f"Outcome: INCORRECT (gold={wrong_answer} was wrong)"
-    )
-
-
-def seed_poison(store, poison_specs, vectorizer, is_atmc: bool):
+def seed_poison(store, poison_specs):
     for text, embedding in poison_specs:
         # correct=False: an honest checker did label these wrong at write time.
         # The interesting question is whether ongoing operation (retrieval +
@@ -88,13 +50,13 @@ def seed_poison(store, poison_specs, vectorizer, is_atmc: bool):
         store.add(text, embedding, correct=False, is_poison=True)
 
 
-def run_condition(store, tasks, vectorizer, poison_texts: set, label: str):
+def run_condition(store, tasks, embedder, cfg, label: str):
     log = []
     correct_count = 0
     poison_exposure = 0  # cumulative count of poison memories retrieved into context
     for i, task in enumerate(tasks):
-        q_emb = vectorizer.transform([task["question"]]).toarray()[0]
-        retrieved = store.retrieve(q_emb, k=TOP_K)
+        q_emb = embedder.embed(task["question"])
+        retrieved = store.retrieve(q_emb, k=cfg.retrieval.top_k)
         mem_texts = [m.text for m in retrieved]
         n_poison_retrieved = sum(1 for m in retrieved if m.is_poison)
         poison_exposure += n_poison_retrieved
@@ -130,65 +92,57 @@ def run_condition(store, tasks, vectorizer, poison_texts: set, label: str):
         print(f"[{label}] {i+1}/{len(tasks)} correct={correct} poison_hit={n_poison_retrieved>0} "
               f"poison_used={n_poison_used>0} poison_remaining={poison_remaining} "
               f"running_acc={correct_count/(i+1):.3f}")
-        time.sleep(4.5)
+        time.sleep(cfg.model.request_interval_s)
     return log
 
 
 def summarize(log, label):
     n = len(log)
-    acc = sum(x["correct"] for x in log) / n
-    total_poison_exposure = log[-1]["poison_exposure_cumulative"]
-    total_poison_used = sum(x["n_poison_used"] for x in log)
     return {
         "label": label,
-        "overall_accuracy": acc,
-        "total_poison_exposure": total_poison_exposure,
-        "total_poison_used": total_poison_used,
+        "overall_accuracy": sum(x["correct"] for x in log) / n,
+        "total_poison_exposure": log[-1]["poison_exposure_cumulative"],
+        "total_poison_used": sum(x["n_poison_used"] for x in log),
         "poison_remaining_final": log[-1]["poison_remaining_in_store"],
         "final_memory_size": log[-1]["memory_size"],
     }
 
 
 def main():
-    tasks = load_tasks(N_TASKS, SEED)
-    vectorizer = TfidfVectorizer(max_features=500).fit([t["question"] for t in tasks])
+    cfg, seed = load_experiment_config()
+    llm.configure(cfg)
+    tasks = load_tasks(cfg, cfg.evaluation.n_tasks, seed)
+    embedder = make_embedder(cfg, corpus=[t["question"] for t in tasks])
+    print(f"embedder={embedder.name}  seed={seed}  n_tasks={len(tasks)}  model={cfg.model.name}")
 
     RESULTS_DIR.mkdir(exist_ok=True)
-
-    poison_specs = []
-    poison_texts = set()
-    for i, task in enumerate(tasks):
-        if i % POISON_EVERY == 0:
-            wrong = make_wrong_answer(task["gold"])
-            text = build_poison_text(task["question"], wrong)
-            emb = vectorizer.transform([task["question"]]).toarray()[0]
-            poison_specs.append((text, emb))
-            poison_texts.add(text)
+    poison_specs = build_poison_specs(tasks, embedder, cfg.evaluation.poison_every)
     print(f"Seeding {len(poison_specs)} poisoned memories into both stores.\n")
 
     print("=== Running STATIC baseline (poisoned) ===")
-    static_store = StaticMemoryStore()
-    seed_poison(static_store, poison_specs, vectorizer, is_atmc=False)
-    static_log = run_condition(static_store, tasks, vectorizer, poison_texts, "static")
+    static_store = build_static()
+    seed_poison(static_store, poison_specs)
+    static_log = run_condition(static_store, tasks, embedder, cfg, "static")
 
     print("\n=== Running ATMC (poisoned) ===")
-    embed_fn = lambda text: vectorizer.transform([text]).toarray()[0]
-    atmc_store = AdaptiveTrustStore(embed_fn=embed_fn, summarize_fn=llm.summarize)
-    seed_poison(atmc_store, poison_specs, vectorizer, is_atmc=True)
-    atmc_log = run_condition(atmc_store, tasks, vectorizer, poison_texts, "atmc")
+    atmc_store = build_atmc(cfg, embedder, llm.summarize)
+    seed_poison(atmc_store, poison_specs)
+    atmc_log = run_condition(atmc_store, tasks, embedder, cfg, "atmc")
 
     results = {
-        "n_tasks": N_TASKS,
-        "seed": SEED,
+        "n_tasks": cfg.evaluation.n_tasks,
+        "seed": seed,
+        "embedder": embedder.name,
+        "config": cfg.to_dict(),
         "n_poison_seeded": len(poison_specs),
         "static": {"log": static_log, "summary": summarize(static_log, "static")},
         "atmc": {"log": atmc_log, "summary": summarize(atmc_log, "atmc")},
     }
-    out_path = RESULTS_DIR / f"poison_pilot_seed{SEED}_{int(time.time())}.json"
+    out_path = RESULTS_DIR / f"poison_pilot_seed{seed}_{int(time.time())}.json"
     out_path.write_text(json.dumps(results, indent=2))
 
     print("\n\n===== POISON PILOT SUMMARY =====")
-    print(f"Poisoned memories seeded per store: {len(poison_specs)}")
+    print(f"embedder: {embedder.name}   poisoned memories seeded per store: {len(poison_specs)}")
     for cond in ("static", "atmc"):
         s = results[cond]["summary"]
         print(f"{cond:10s}  overall_acc={s['overall_accuracy']:.3f}  "

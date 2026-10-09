@@ -26,11 +26,12 @@ Trust-gated memory retrieval reduces exposure to deliberately planted incorrect 
 - Pilot scripts reproducing the result above across multiple seeds → [`pilot/run_pilot.py`](pilot/run_pilot.py), [`pilot/run_poison_pilot.py`](pilot/run_poison_pilot.py)
 - A full-stack demo app (FastAPI backend + React frontend) running ATMC live, interactively, so the result above can be watched rather than just read → [`app/`](app/)
 
+**Also built since the first pilot:** Memory Compression (the fourth pillar, independently switchable), the 4-way ablation runner (Full / w/o Trust / w/o Forgetting / w/o Compression), real sentence embeddings, a central config file, and SQLite persistence for the demo.
+
 **Not yet built, still ATMC-scoped:**
-- Memory Compression — the fourth pillar (Section 8.4) has no implementation yet
-- The full ablation matrix (Section 8) — only 2 of 4 conditions are currently comparable
 - Benchmarks beyond GSM8K (HumanEval/MBPP planned)
 - Baselines beyond static memory (Reflexion-style, SAGE-style, A-MEM — Section 9)
+- Multi-seed (5+) runs of the ablation and full-dataset evaluation — current runs are pilots (40 tasks, 3 seeds)
 
 ### Part B — The self-evolving agent (built around ATMC): not started
 
@@ -45,14 +46,30 @@ Everything an agent needs *beyond* memory governance is currently missing entire
 
 ## Getting Started
 
-**Run the pilot experiments:**
+**Setup (from the repo root):**
 ```bash
-cd pilot
-python3 -m venv .venv && source .venv/bin/activate
-pip install google-genai python-dotenv scikit-learn numpy
-echo "GEMINI_API_KEY=your_key_here" > ../.env
-python3 run_poison_pilot.py
+python3 -m venv pilot/.venv && source pilot/.venv/bin/activate
+pip install -r requirements.txt
+echo "GEMINI_API_KEY=your_key_here" > .env
 ```
+
+**Run the experiments:**
+```bash
+python3 pilot/run_poison_pilot.py            # static vs ATMC under planted wrong memories
+python3 pilot/run_ablation.py                # Full / w/o Trust / w/o Forgetting / w/o Compression
+PILOT_SEED=123 python3 pilot/run_poison_pilot.py   # a different seed
+```
+Quick overrides: `PILOT_SEED`, `PILOT_N_TASKS`, `PILOT_EMBEDDING` (`fastembed` | `gemini` | `tfidf`).
+
+**Configuration:** every tunable (trust reward/penalty and minimum, decay rates, composite
+weights, compression schedule, model and temperature, embedder, seeds) lives in
+[`configs/default.yaml`](configs/default.yaml). Each results JSON stores a snapshot of the exact
+config it ran with, so any run can be reproduced from its own output. Invalid values
+(e.g. composite weights not summing to 1) are rejected at load time.
+
+**Embeddings:** relevance is measured with a local sentence-embedding model
+(`BAAI/bge-small-en-v1.5` via `fastembed` -- no API quota, no PyTorch). The original TF-IDF
+backend is kept (`embedding.backend: tfidf`) so the two can be compared directly.
 
 **Run the demo app:**
 ```bash
@@ -986,20 +1003,25 @@ What actually exists in this repository right now:
 ```text
 .
 ├── README.md
-├── .gitignore
+├── requirements.txt
+├── configs/default.yaml          # every tunable: trust, decay, weights, compression, model, embedder, seeds
 │
 ├── pilot/                        # engine + experiments
 │   ├── memory.py                 # Section 2: trust/importance/decay/composite math
-│   ├── stores.py                 # StaticMemoryStore, AdaptiveTrustStore (ATMC)
+│   ├── stores.py                 # StaticMemoryStore, AdaptiveTrustStore (ATMC, 4 toggleable pillars)
+│   ├── embeddings.py             # text -> vector: fastembed (default) | gemini | tfidf
+│   ├── config.py, factory.py     # config loading/validation; builds stores from config
+│   ├── tasks.py                  # task sampling and poison construction (shared)
 │   ├── llm.py                    # Reasoning Agent (Gemini) + deterministic Checker
 │   ├── run_pilot.py              # organic-mistake pilot (ceiling-effect finding)
-│   ├── run_poison_pilot.py       # poison-memory pilot (the validated 8.0x result)
+│   ├── run_poison_pilot.py       # poison-memory pilot (static vs ATMC)
+│   ├── run_ablation.py           # 4-way ablation (Section 8)
 │   ├── data/gsm8k_test.jsonl     # benchmark data
-│   └── results/                  # experiment logs, by seed, incl. pre/post-fix history
+│   └── results/                  # experiment logs (tfidf_baseline/ = results under the original TF-IDF embedder)
 │
-└── app/                           # full-stack demo
-    ├── backend/main.py            # FastAPI wrapper around pilot/ engine
-    └── frontend/                  # React (Vite) — live static-vs-ATMC comparison UI
+└── app/                          # full-stack demo
+    ├── backend/main.py, db.py    # FastAPI wrapper; SQLite persistence
+    └── frontend/                 # React (Vite): Demo, Memory Explorer, Results, Architecture
 ```
 
 ## 14.2 Target Structure (by end of Month 3)

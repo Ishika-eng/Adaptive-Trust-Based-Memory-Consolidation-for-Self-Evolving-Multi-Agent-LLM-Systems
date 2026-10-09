@@ -8,10 +8,21 @@ import re
 import time
 
 from google import genai
+from google.genai import types
 
 MODEL_NAME = "gemini-3.5-flash-lite"
+TEMPERATURE: float | None = None  # None = the API's own default
+MAX_RETRIES = 4
 
 _client = None
+
+
+def configure(cfg) -> None:
+    """Apply model settings from configs/default.yaml (model.*)."""
+    global MODEL_NAME, TEMPERATURE, MAX_RETRIES
+    MODEL_NAME = cfg.model.name
+    TEMPERATURE = cfg.model.temperature
+    MAX_RETRIES = cfg.model.max_retries
 
 
 def _get_client():
@@ -25,11 +36,24 @@ def _get_client():
     return _client
 
 
-def solve(question: str, retrieved_memories: list[str], max_retries: int = 4) -> str:
+def _generate(prompt: str) -> str:
+    """One LLM call with exponential-backoff retries (rate limits, transient errors)."""
+    client = _get_client()
+    gen_config = types.GenerateContentConfig(temperature=TEMPERATURE) if TEMPERATURE is not None else None
+    last_err = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            resp = client.models.generate_content(model=MODEL_NAME, contents=prompt, config=gen_config)
+            return resp.text
+        except Exception as e:
+            last_err = e
+            time.sleep(2 ** attempt * 2)
+    raise RuntimeError(f"Gemini call failed after {MAX_RETRIES} retries: {last_err}")
+
+
+def solve(question: str, retrieved_memories: list[str]) -> str:
     """Ask the model to solve a GSM8K problem, optionally with retrieved
     past reflections as few-shot context. Returns raw model text."""
-    client = _get_client()
-
     if retrieved_memories:
         context = "\n\n".join(f"Past experience {i+1}: {m}" for i, m in enumerate(retrieved_memories))
         prefix = (
@@ -51,21 +75,12 @@ def solve(question: str, retrieved_memories: list[str], max_retries: int = 4) ->
         f"Problem: {question}"
     )
 
-    last_err = None
-    for attempt in range(max_retries):
-        try:
-            resp = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-            return resp.text
-        except Exception as e:  # rate limit / transient errors
-            last_err = e
-            time.sleep(2 ** attempt * 2)
-    raise RuntimeError(f"Gemini call failed after {max_retries} retries: {last_err}")
+    return _generate(prompt)
 
 
-def summarize(texts: list[str], max_retries: int = 4) -> str:
+def summarize(texts: list[str]) -> str:
     """Memory Compression (README 8.4): merge several raw memory entries into
     one short consolidated note. Used by AdaptiveTrustStore._compress()."""
-    client = _get_client()
     joined = "\n\n".join(f"Note {i+1}:\n{t}" for i, t in enumerate(texts))
     prompt = (
         "Merge the following past problem-solving notes into a single short "
@@ -74,15 +89,7 @@ def summarize(texts: list[str], max_retries: int = 4) -> str:
         "them in a memory bank without losing important information.\n\n"
         f"{joined}\n\nConsolidated note:"
     )
-    last_err = None
-    for attempt in range(max_retries):
-        try:
-            resp = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-            return resp.text.strip()
-        except Exception as e:
-            last_err = e
-            time.sleep(2 ** attempt * 2)
-    raise RuntimeError(f"Gemini summarize call failed after {max_retries} retries: {last_err}")
+    return _generate(prompt).strip()
 
 
 _NUM_RE = re.compile(r"-?\d[\d,]*\.?\d*")

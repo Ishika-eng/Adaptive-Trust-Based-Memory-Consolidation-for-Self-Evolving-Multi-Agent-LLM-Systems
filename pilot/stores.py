@@ -69,8 +69,11 @@ class AdaptiveTrustStore:
                  enable_compression: bool = True,
                  compress_every: int = 8, compress_batch_size: int = 3,
                  compress_min_age_steps: int = 5,
+                 initial_trust: float = 0.5, prune_min_retention: float = 0.05,
                  embed_fn=None, summarize_fn=None, label: str | None = None):
         self.items: list[MemoryItem] = []
+        self.initial_trust = initial_trust
+        self.prune_min_retention = prune_min_retention
         self.t_min = t_min
         self.eta, self.delta = eta, delta
         self.decay_kwargs = dict(lambda_0=lambda_0, alpha=alpha, beta=beta)
@@ -100,7 +103,7 @@ class AdaptiveTrustStore:
             # Hard verification gate (README Section 5): only checker-verified
             # reflections enter the bank; the initial trust reflects that check.
             R = 1 if correct else -1
-            T0 = update_trust(0.5, R, self.eta, self.delta)
+            T0 = update_trust(self.initial_trust, R, self.eta, self.delta)
             if T0 < self.t_min:
                 return  # discarded at the gate -- never promoted
         else:
@@ -120,7 +123,7 @@ class AdaptiveTrustStore:
             dt = max(self._step - m.created_at_step, 0)
             I = importance(1.0, m.hits)  # self-importance proxy at prune time
             F = retention_factor(m.trust, I, dt, **self.decay_kwargs)
-            if m.trust >= self.t_min and F > 0.05:
+            if m.trust >= self.t_min and F > self.prune_min_retention:
                 kept.append(m)
         self.items = kept
 

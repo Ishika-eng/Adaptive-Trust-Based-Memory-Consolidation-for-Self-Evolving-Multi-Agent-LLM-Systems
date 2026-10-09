@@ -10,8 +10,6 @@ multi-seed stats) described in the README.
 from __future__ import annotations
 
 import json
-import os
-import random
 import sys
 import time
 from pathlib import Path
@@ -19,40 +17,23 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-from stores import StaticMemoryStore, AdaptiveTrustStore
 import llm
+from config import load_experiment_config
+from embeddings import make_embedder
+from factory import build_atmc, build_static
+from tasks import load_tasks
 
-N_TASKS = int(os.environ.get("PILOT_N_TASKS", "40"))
-TOP_K = 3
-SEED = 42
-DATA_PATH = Path(__file__).resolve().parent / "data" / "gsm8k_test.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
-def load_tasks(n: int, seed: int):
-    tasks = []
-    with open(DATA_PATH) as f:
-        for line in f:
-            tasks.append(json.loads(line))
-    rng = random.Random(seed)
-    rng.shuffle(tasks)
-    tasks = tasks[:n]
-    for t in tasks:
-        t["gold"] = t["answer"].split("####")[-1].strip()
-    return tasks
-
-
-def run_condition(store, tasks, vectorizer, label: str):
+def run_condition(store, tasks, embedder, cfg, label: str):
     log = []
     correct_count = 0
     for i, task in enumerate(tasks):
-        q_emb = vectorizer.transform([task["question"]]).toarray()[0]
-        retrieved = store.retrieve(q_emb, k=TOP_K)
+        q_emb = embedder.embed(task["question"])
+        retrieved = store.retrieve(q_emb, k=cfg.retrieval.top_k)
         mem_texts = [m.text for m in retrieved]
 
         raw = llm.solve(task["question"], mem_texts)
@@ -81,44 +62,41 @@ def run_condition(store, tasks, vectorizer, label: str):
         })
         print(f"[{label}] {i+1}/{len(tasks)} correct={correct} "
               f"running_acc={correct_count/(i+1):.3f} mem_size={store.size()}")
-        time.sleep(4.5)  # stay under gemini-3.5-flash-lite free tier: 15 req/min
+        time.sleep(cfg.model.request_interval_s)
     return log
 
 
 def summarize(log, label):
     n = len(log)
-    first_half = log[: n // 2]
-    second_half = log[n // 2 :]
-    acc = sum(x["correct"] for x in log) / n
-    acc1 = sum(x["correct"] for x in first_half) / max(len(first_half), 1)
-    acc2 = sum(x["correct"] for x in second_half) / max(len(second_half), 1)
+    first_half, second_half = log[: n // 2], log[n // 2:]
     return {
         "label": label,
-        "overall_accuracy": acc,
-        "first_half_accuracy": acc1,
-        "second_half_accuracy": acc2,
+        "overall_accuracy": sum(x["correct"] for x in log) / n,
+        "first_half_accuracy": sum(x["correct"] for x in first_half) / max(len(first_half), 1),
+        "second_half_accuracy": sum(x["correct"] for x in second_half) / max(len(second_half), 1),
         "final_memory_size": log[-1]["memory_size"] if log else 0,
     }
 
 
 def main():
-    tasks = load_tasks(N_TASKS, SEED)
-    vectorizer = TfidfVectorizer(max_features=500).fit([t["question"] for t in tasks])
-
+    cfg, seed = load_experiment_config()
+    llm.configure(cfg)
+    tasks = load_tasks(cfg, cfg.evaluation.n_tasks, seed)
+    embedder = make_embedder(cfg, corpus=[t["question"] for t in tasks])
+    print(f"embedder={embedder.name}  seed={seed}  n_tasks={len(tasks)}  model={cfg.model.name}")
     RESULTS_DIR.mkdir(exist_ok=True)
 
     print("=== Running STATIC baseline ===")
-    static_store = StaticMemoryStore()
-    static_log = run_condition(static_store, tasks, vectorizer, "static")
+    static_log = run_condition(build_static(), tasks, embedder, cfg, "static")
 
     print("\n=== Running ATMC (proposed) ===")
-    embed_fn = lambda text: vectorizer.transform([text]).toarray()[0]
-    atmc_store = AdaptiveTrustStore(embed_fn=embed_fn, summarize_fn=llm.summarize)
-    atmc_log = run_condition(atmc_store, tasks, vectorizer, "atmc")
+    atmc_log = run_condition(build_atmc(cfg, embedder, llm.summarize), tasks, embedder, cfg, "atmc")
 
     results = {
-        "n_tasks": N_TASKS,
-        "seed": SEED,
+        "n_tasks": cfg.evaluation.n_tasks,
+        "seed": seed,
+        "embedder": embedder.name,
+        "config": cfg.to_dict(),
         "static": {"log": static_log, "summary": summarize(static_log, "static")},
         "atmc": {"log": atmc_log, "summary": summarize(atmc_log, "atmc")},
     }

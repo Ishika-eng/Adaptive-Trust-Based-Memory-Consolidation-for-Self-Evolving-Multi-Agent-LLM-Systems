@@ -20,16 +20,18 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT / "pilot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from stores import StaticMemoryStore, AdaptiveTrustStore  # noqa: E402
-import llm  # noqa: E402
 import db  # noqa: E402
+import llm  # noqa: E402
+from config import load_config  # noqa: E402
+from embeddings import make_embedder  # noqa: E402
+from factory import build_atmc, build_static  # noqa: E402
+from tasks import build_poison_specs, load_tasks  # noqa: E402
 
 app = FastAPI(title="ATMC Demo API")
 app.add_middleware(
@@ -39,61 +41,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_PATH = ROOT / "pilot" / "data" / "gsm8k_test.jsonl"
-N_SAMPLE_TASKS = 20
-POISON_EVERY = 3
-
-# ---- load a fixed sample of tasks + fit the vectorizer once ----
-_all_tasks = []
-with open(DATA_PATH) as f:
-    for line in f:
-        _all_tasks.append(json.loads(line))
-
-import random
-_rng = random.Random(42)
-_rng.shuffle(_all_tasks)
-TASKS = _all_tasks[:N_SAMPLE_TASKS]
-for t in TASKS:
-    t["gold"] = t["answer"].split("####")[-1].strip()
-
-VECTORIZER = TfidfVectorizer(max_features=500).fit([t["question"] for t in TASKS])
-
-
-def make_wrong_answer(gold: str) -> str:
-    try:
-        g = float(gold.replace(",", ""))
-        wrong = g + (7 if g >= 0 else -7)
-        return str(int(wrong)) if wrong == int(wrong) else str(wrong)
-    except ValueError:
-        return gold + "0"
-
-
-def build_poison_text(question: str, wrong_answer: str) -> str:
-    return (
-        f"Q: {question}\n"
-        f"A: I worked through the problem and calculated the values step by step. "
-        f"#### {wrong_answer}\n"
-        f"Outcome: INCORRECT (gold={wrong_answer} was wrong)"
-    )
+# ---- config, a fixed question pool, and the embedder (all from configs/default.yaml) ----
+CFG = load_config()
+llm.configure(CFG)
+TASKS = load_tasks(CFG, CFG.app.n_sample_tasks, CFG.app.sample_seed)
+EMBEDDER = make_embedder(CFG, corpus=[t["question"] for t in TASKS])
 
 
 def _embed(text: str):
-    return VECTORIZER.transform([text]).toarray()[0]
+    return EMBEDDER.embed(text)
 
 
 # ---- persistent session state (backed by SQLite, see db.py) ----
 db.init_db()
 STORES = {
-    "static": StaticMemoryStore(),
-    "atmc": AdaptiveTrustStore(embed_fn=_embed, summarize_fn=llm.summarize),
+    "static": build_static(),
+    "atmc": build_atmc(CFG, EMBEDDER, llm.summarize),
 }
 for _name, _store in STORES.items():
-    db.load_store(_name, _store)
+    db.load_store(_name, _store, EMBEDDER.name)
 
 STATE = {
     "poisoned": any(m.is_poison for s in STORES.values() for m in s.items),
     "solved_ids": [],
 }
+
+
+def _save_all():
+    for name, store in STORES.items():
+        db.save_store(name, store, EMBEDDER.name)
 
 
 class SolveRequest(BaseModel):
@@ -102,7 +78,7 @@ class SolveRequest(BaseModel):
 
 def _run_store(store, task, use_memory: bool):
     q_emb = _embed(task["question"])
-    retrieved = store.retrieve(q_emb, k=3) if use_memory else []
+    retrieved = store.retrieve(q_emb, k=CFG.retrieval.top_k) if use_memory else []
     mem_texts = [m.text for m in retrieved]
 
     raw = llm.solve(task["question"], mem_texts)
@@ -158,11 +134,10 @@ def get_state():
 def solve(req: SolveRequest):
     task = TASKS[req.task_id]
     static_result = _run_store(STORES["static"], task, use_memory=True)
-    time.sleep(4.5)  # stay under Gemini free-tier rate limit between the two calls
+    time.sleep(CFG.model.request_interval_s)  # stay under the free-tier rate limit between the two calls
     atmc_result = _run_store(STORES["atmc"], task, use_memory=True)
     STATE["solved_ids"].append(req.task_id)
-    db.save_store("static", STORES["static"])
-    db.save_store("atmc", STORES["atmc"])
+    _save_all()
     return {"question": task["question"], "static": static_result, "atmc": atmc_result}
 
 
@@ -170,25 +145,19 @@ def solve(req: SolveRequest):
 def seed_poison():
     if STATE["poisoned"]:
         return {"seeded": 0, "already_poisoned": True}
-    n = 0
-    for i, task in enumerate(TASKS):
-        if i % POISON_EVERY == 0:
-            wrong = make_wrong_answer(task["gold"])
-            text = build_poison_text(task["question"], wrong)
-            emb = _embed(task["question"])
-            STORES["static"].add(text, emb, correct=False, is_poison=True)
-            STORES["atmc"].add(text, emb, correct=False, is_poison=True)
-            n += 1
+    specs = build_poison_specs(TASKS, EMBEDDER, CFG.evaluation.poison_every)
+    for text, emb in specs:
+        STORES["static"].add(text, emb, correct=False, is_poison=True)
+        STORES["atmc"].add(text, emb, correct=False, is_poison=True)
     STATE["poisoned"] = True
-    db.save_store("static", STORES["static"])
-    db.save_store("atmc", STORES["atmc"])
-    return {"seeded": n, "already_poisoned": False}
+    _save_all()
+    return {"seeded": len(specs), "already_poisoned": False}
 
 
 @app.post("/api/reset")
 def reset():
-    STORES["static"] = StaticMemoryStore()
-    STORES["atmc"] = AdaptiveTrustStore(embed_fn=_embed, summarize_fn=llm.summarize)
+    STORES["static"] = build_static()
+    STORES["atmc"] = build_atmc(CFG, EMBEDDER, llm.summarize)
     STATE["poisoned"] = False
     STATE["solved_ids"] = []
     db.clear_store("static")

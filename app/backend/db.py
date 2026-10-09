@@ -50,6 +50,7 @@ def _connect() -> sqlite3.Connection:
         )
         """
     )
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     return conn
 
 
@@ -57,8 +58,9 @@ def init_db() -> None:
     _connect().close()
 
 
-def save_store(store_name: str, store) -> None:
-    """Overwrites this store's saved rows with its current in-memory state."""
+def save_store(store_name: str, store, embedder_id: str) -> None:
+    """Overwrites this store's saved rows with its current in-memory state,
+    and records which embedder produced the vectors."""
     conn = _connect()
     conn.execute("DELETE FROM memories WHERE store_name = ?", (store_name,))
     conn.executemany(
@@ -94,14 +96,28 @@ def save_store(store_name: str, store) -> None:
             getattr(store, "n_poison_laundered", 0),
         ),
     )
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES ('embedder', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (embedder_id,),
+    )
     conn.commit()
     conn.close()
 
 
-def load_store(store_name: str, store) -> bool:
+def load_store(store_name: str, store, embedder_id: str) -> bool:
     """Loads saved rows into an already-constructed store object, in place.
-    Returns True if anything was found and loaded."""
+    Returns True if anything was found and loaded.
+
+    Vectors from one embedder are meaningless to another (different dimension
+    and geometry), so data saved under a different embedder is discarded
+    instead of loaded."""
     conn = _connect()
+    saved = conn.execute("SELECT value FROM meta WHERE key = 'embedder'").fetchone()
+    if saved and saved[0] != embedder_id:
+        conn.close()
+        clear_store(store_name)
+        return False
     rows = conn.execute(
         "SELECT text, embedding, trust, hits, created_at_step, correct, is_poison "
         "FROM memories WHERE store_name = ? ORDER BY id",

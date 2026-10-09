@@ -58,6 +58,35 @@ const CONDITION_LABELS = {
   wo_compression: 'w/o Compression',
 }
 
+
+// Findings are computed from the data, so the text can never contradict the table above it.
+function AblationFindings({ conditions, nSeeds }) {
+  const by = Object.fromEntries(conditions.map(c => [c.name, c]))
+  const full = by.full_system, noTrust = by.wo_trust, noForget = by.wo_forgetting, noComp = by.wo_compression
+  if (!full || !noTrust || !noForget || !noComp) return null
+  const worst = noTrust.total_poison_exposure >= noForget.total_poison_exposure
+    ? { name: 'Trust scoring', c: noTrust, other: 'Forgetting', oc: noForget }
+    : { name: 'Forgetting', c: noForget, other: 'Trust scoring', oc: noTrust }
+  const memSaved = Math.round((1 - full.final_memory_size / noComp.final_memory_size) * 100)
+  return (
+    <>
+      <div className="finding-box">
+        <strong>Which pillar matters most:</strong> removing {worst.name} hurts the most — poison exposure rises from{' '}
+        {full.total_poison_exposure} to {worst.c.total_poison_exposure}, versus {worst.oc.total_poison_exposure} when
+        removing {worst.other}.
+      </div>
+      <div className="finding-box finding-box--warn">
+        <strong>Compression:</strong> shrinks the memory bank by {memSaved}% ({full.final_memory_size} vs{' '}
+        {noComp.final_memory_size} notes); poison exposure with vs without it: {full.total_poison_exposure} vs{' '}
+        {noComp.total_poison_exposure}. Poisoned notes merged in with clean ones: {full.n_poison_laundered}.
+      </div>
+      {nSeeds < 3 && (
+        <p className="muted">Based on {nSeeds} seed — treat the ordering as preliminary until repeated across seeds.</p>
+      )}
+    </>
+  )
+}
+
 function AblationTable({ ablation }) {
   if (!ablation || !ablation.conditions?.length) return <p className="muted">No ablation results found yet.</p>
   return (
@@ -88,16 +117,7 @@ function AblationTable({ ablation }) {
           ))}
         </tbody>
       </table>
-      <div className="finding-box">
-        <strong>Finding — Forgetting matters more than Trust alone:</strong> removing Trust scoring roughly doubles
-        poison exposure; removing Forgetting is worse still, because Trust filtering alone lets an already-admitted
-        bad memory sit in the bank forever — only active forgetting removes it as time passes.
-      </div>
-      <div className="finding-box finding-box--warn">
-        <strong>Finding — Compression has a real cost:</strong> it shrinks the memory bank, but merging old memories
-        together can fold a poisoned one in with clean ones, diluting how distinct it looks ("Poison Laundered" &gt; 0).
-        Reported honestly rather than hidden.
-      </div>
+      <AblationFindings conditions={ablation.conditions} nSeeds={1} />
     </div>
   )
 }
