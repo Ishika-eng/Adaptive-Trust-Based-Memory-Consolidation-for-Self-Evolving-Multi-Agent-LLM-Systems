@@ -45,6 +45,7 @@ class Condition:
     kind: str                                   # none | static | reflexion | atmc
     pillars: dict = field(default_factory=dict)  # enable_trust / enable_forgetting / enable_compression
     agent: dict = field(default_factory=dict)    # overrides for cfg.agent (planner, reflection, curriculum)
+    retrieval: dict = field(default_factory=dict)  # overrides for cfg.retrieval (e.g. min_similarity)
 
 
 @dataclass
@@ -70,6 +71,9 @@ PRESETS: dict[str, Preset] = {
     "baselines_poison": Preset({
         "no_memory": Condition("none"), "static": Condition("static"),
         "reflexion": Condition("reflexion"), "atmc": Condition("atmc"),
+        # relevance floor: only inject notes at least this similar to the task
+        "static_minsim": Condition("static", retrieval={"min_similarity": 0.75}),
+        "atmc_minsim": Condition("atmc", retrieval={"min_similarity": 0.75}),
     }, poison=True),
     "agent": Preset({
         "atmc": Condition("atmc"),
@@ -86,6 +90,7 @@ def condition_cfg(cfg, cond: Condition) -> Config:
     """Experiments follow the pool in a fixed order unless the condition says otherwise."""
     d = cfg.to_dict()
     d["agent"] = {**d["agent"], "curriculum": "fixed", **cond.agent}
+    d["retrieval"] = {**d["retrieval"], **cond.retrieval}
     return Config(d)
 
 
@@ -164,7 +169,8 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({
         "experiment": exp, "domain": domain.name, "condition": cname, "seed": seed, "n": n, "heldout": heldout,
-        "embedder": embedder.name, "condition_spec": {"kind": cond.kind, "pillars": cond.pillars, "agent": cond.agent},
+        "embedder": embedder.name, "condition_spec": {"kind": cond.kind, "pillars": cond.pillars, "agent": cond.agent,
+                                            "retrieval": cond.retrieval},
         "config": ccfg.to_dict(), "summary": summary, "steps": steps, "heldout_steps": held_detail,
     }, indent=1))
     return f"pass {summary['pass_rate']:.2f}, poison {summary['poison_exposure']}, {summary['llm_calls']} calls"

@@ -31,8 +31,9 @@ class StaticMemoryStore:
 
     name = "static"
 
-    def __init__(self):
+    def __init__(self, min_similarity: float = 0.0):
         self.items: list[MemoryItem] = []
+        self.min_similarity = min_similarity     # 0 = always return the top-k, however dissimilar
 
     def add(self, text: str, embedding, correct: bool, is_poison: bool = False):
         # unconditional storage -- no verification gate
@@ -42,7 +43,7 @@ class StaticMemoryStore:
         if not self.items:
             return []
         sims = cosine_similarity([query_embedding], [m.embedding for m in self.items])[0]
-        order = np.argsort(-sims)[:k]
+        order = [i for i in np.argsort(-sims)[:k] if sims[i] >= self.min_similarity]
         chosen = [self.items[i] for i in order]
         for m in chosen:
             m.hits += 1
@@ -121,8 +122,10 @@ class AdaptiveTrustStore:
                  compress_every: int = 8, compress_batch_size: int = 3,
                  compress_min_age_steps: int = 5,
                  initial_trust: float = 0.5, prune_min_retention: float = 0.05,
-                 embed_fn=None, summarize_fn=None, label: str | None = None):
+                 embed_fn=None, summarize_fn=None, label: str | None = None,
+                 min_similarity: float = 0.0):
         self.items: list[MemoryItem] = []
+        self.min_similarity = min_similarity     # relevance floor: never inject a note this dissimilar to the task
         self.initial_trust = initial_trust
         self.prune_min_retention = prune_min_retention
         self.t_min = t_min
@@ -235,6 +238,9 @@ class AdaptiveTrustStore:
         for m, sim in zip(self.items, sims):
             if self.enable_trust and m.trust < self.t_min:
                 scores.append(-1e9)  # trust-based filtering
+                continue
+            if sim < self.min_similarity:
+                scores.append(-1e9)  # relevance floor
                 continue
             I = importance(sim, m.hits)
             if self.enable_forgetting:

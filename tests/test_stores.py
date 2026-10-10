@@ -138,3 +138,23 @@ def test_baselines(cfg, embedder):
 def test_unknown_store_kind_is_rejected(cfg, embedder):
     with pytest.raises(ValueError):
         build_store("nope", cfg, embedder, None)
+
+
+def test_min_similarity_drops_irrelevant_notes_in_both_stores():
+    import numpy as np
+    from stores import AdaptiveTrustStore, StaticMemoryStore
+    near, far = np.array([1.0, 0.0]), np.array([0.0, 1.0])
+    for store in (StaticMemoryStore(min_similarity=0.5), AdaptiveTrustStore(min_similarity=0.5)):
+        store.add("relevant", near, correct=True)
+        store.add("irrelevant", far, correct=True)
+        got = [m.text for m in store.retrieve(np.array([1.0, 0.0]), k=3)]
+        assert got == ["relevant"], (store.name, got)
+
+
+def test_min_similarity_zero_keeps_old_behaviour():
+    import numpy as np
+    from stores import AdaptiveTrustStore
+    store = AdaptiveTrustStore()
+    store.add("a", np.array([1.0, 0.0]), correct=True)
+    store.add("b", np.array([0.0, 1.0]), correct=True)
+    assert len(store.retrieve(np.array([1.0, 0.0]), k=3)) == 2

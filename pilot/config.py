@@ -65,6 +65,8 @@ def _validate(d: dict) -> None:
         raise ValueError("agent.curriculum_explore must be in [0, 1]")
     if d["retrieval"]["top_k"] < 1:
         raise ValueError("retrieval.top_k must be >= 1")
+    if not 0.0 <= d["retrieval"].get("min_similarity", 0.0) < 1.0:
+        raise ValueError("retrieval.min_similarity must be in [0, 1)")
 
 
 def load_config(path: str | Path | None = None, overrides: dict | None = None) -> Config:

@@ -6,8 +6,8 @@ from __future__ import annotations
 from stores import AdaptiveTrustStore, NoMemoryStore, ReflexionStyleStore, StaticMemoryStore
 
 
-def build_static() -> StaticMemoryStore:
-    return StaticMemoryStore()
+def build_static(min_similarity: float = 0.0) -> StaticMemoryStore:
+    return StaticMemoryStore(min_similarity=min_similarity)
 
 
 def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_overrides) -> AdaptiveTrustStore:
@@ -38,6 +38,7 @@ def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_o
         embed_fn=embedder.embed,
         summarize_fn=summarize_fn,
         label=label,
+        min_similarity=cfg.retrieval.to_dict().get("min_similarity", 0.0),
         **pillars,
     )
 
@@ -50,7 +51,7 @@ def build_store(kind: str, cfg, embedder, summarize_fn, **pillar_overrides):
     if kind == "none":
         return NoMemoryStore()
     if kind == "static":
-        return build_static()
+        return build_static(cfg.retrieval.to_dict().get("min_similarity", 0.0))
     if kind == "reflexion":
         return ReflexionStyleStore(buffer_size=cfg.retrieval.top_k)
     if kind == "atmc":
