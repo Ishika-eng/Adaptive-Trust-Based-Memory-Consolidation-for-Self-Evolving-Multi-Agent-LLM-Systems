@@ -423,3 +423,28 @@
   color: #495057;
 }
 .roadmap-title { font-size: 1.05rem; margin-top: 28px; }
+
+/* ---- Assistant page ---- */
+.seg { display: inline-flex; border: 1px solid #ced4da; border-radius: 8px; overflow: hidden; }
+.seg-btn { background: white; border: 0; padding: 6px 16px; cursor: pointer; font: inherit; }
+.seg-btn--on { background: #4c6ef5; color: white; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.stat { flex: 1 1 130px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; color: #495057; }
+.stat span { display: block; font-size: 1.5rem; font-weight: 600; color: #212529; }
+.stat--wide { flex-basis: 170px; }
+.code { background: #f1f3f5; border-radius: 6px; padding: 10px 12px; font-size: 0.82rem; overflow-x: auto; white-space: pre-wrap; margin: 4px 0 12px; }
+.code--task { background: #edf2ff; }
+.code--lesson { background: #fff9db; }
+.step { margin-top: 16px; }
+.step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 8px; }
+.curve { width: 100%; max-width: 520px; height: auto; }
+.curve-line { fill: none; stroke: #4c6ef5; stroke-width: 2; }
+.curve-dot { fill: #4c6ef5; }
+.curve-grid { stroke: #dee2e6; stroke-width: 1; }
+.curve-label { font-size: 8px; fill: #868e96; }
+.control-step select { flex: 0 0 auto; width: 320px; max-width: 100%; }
+.pill--impl { background: #fff3bf; color: #946200; }
+.page-header { gap: 12px; flex-wrap: wrap; }
+.eval-block { margin: 20px 0; }
+.eval-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.explorer-table td.num { font-variant-numeric: tabular-nums; }

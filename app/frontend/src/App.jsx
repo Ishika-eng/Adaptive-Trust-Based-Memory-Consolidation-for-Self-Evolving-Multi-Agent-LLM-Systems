@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import './App.css'
+import Assistant from './pages/Assistant'
 import Demo from './pages/Demo'
 import MemoryExplorer from './pages/MemoryExplorer'
 import Results from './pages/Results'
 import Architecture from './pages/Architecture'
 
 const PAGES = {
+  assistant: { label: 'Assistant', component: Assistant },
   demo: { label: 'Demo', component: Demo },
   memory: { label: 'Memory Explorer', component: MemoryExplorer },
   results: { label: 'Results', component: Results },
@@ -13,7 +15,7 @@ const PAGES = {
 }
 
 export default function App() {
-  const [page, setPage] = useState('demo')
+  const [page, setPage] = useState('assistant')
   const Page = PAGES[page].component
 
   return (

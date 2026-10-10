@@ -50,6 +50,10 @@ def _connect() -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS history ("
+        "domain TEXT NOT NULL, idx INTEGER NOT NULL, entry TEXT NOT NULL, PRIMARY KEY (domain, idx))"
+    )
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     return conn
 
@@ -163,5 +167,32 @@ def clear_store(store_name: str) -> None:
     conn = _connect()
     conn.execute("DELETE FROM memories WHERE store_name = ?", (store_name,))
     conn.execute("DELETE FROM store_state WHERE store_name = ?", (store_name,))
+    conn.commit()
+    conn.close()
+
+
+def save_history(domain: str, history: list[dict]) -> None:
+    """The agent's per-step log -- needed so the curriculum still knows which
+    tasks it has already attempted after a restart."""
+    conn = _connect()
+    conn.execute("DELETE FROM history WHERE domain = ?", (domain,))
+    conn.executemany(
+        "INSERT INTO history (domain, idx, entry) VALUES (?, ?, ?)",
+        [(domain, i, json.dumps(h)) for i, h in enumerate(history)],
+    )
+    conn.commit()
+    conn.close()
+
+
+def load_history(domain: str) -> list[dict]:
+    conn = _connect()
+    rows = conn.execute("SELECT entry FROM history WHERE domain = ? ORDER BY idx", (domain,)).fetchall()
+    conn.close()
+    return [json.loads(r[0]) for r in rows]
+
+
+def clear_history(domain: str) -> None:
+    conn = _connect()
+    conn.execute("DELETE FROM history WHERE domain = ?", (domain,))
     conn.commit()
     conn.close()

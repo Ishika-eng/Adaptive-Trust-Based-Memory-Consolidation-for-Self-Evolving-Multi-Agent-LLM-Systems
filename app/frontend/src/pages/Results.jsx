@@ -29,7 +29,7 @@ function PilotDashboard({ stats }) {
   )
   return (
     <div className="dashboard">
-      <h2>Poison-Memory Pilot ({stats.n_seeds} seeds: {stats.seeds.join(', ')})</h2>
+      <h2>Earlier math poison pilot ({stats.n_seeds} seeds: {stats.seeds.join(', ')})</h2>
       <div className="dash-row">
         <div className="dash-metric">
           <span className="dash-metric-label">How often a wrong note reached the AI</span>
@@ -91,7 +91,7 @@ function AblationTable({ ablation }) {
   if (!ablation || !ablation.conditions?.length) return <p className="muted">No ablation results found yet.</p>
   return (
     <div className="dashboard">
-      <h2>4-Way Ablation Study (seed {ablation.seed}, {ablation.n_tasks} tasks, {ablation.n_poison_seeded} poisoned notes)</h2>
+      <h2>Earlier 4-way ablation (seed {ablation.seed}, {ablation.n_tasks} tasks, {ablation.n_poison_seeded} poisoned notes)</h2>
       <p className="muted">Isolating exactly which mechanism — Trust, Forgetting, Compression — contributes what.</p>
       <table className="explorer-table ablation-table">
         <thead>
@@ -117,7 +117,81 @@ function AblationTable({ ablation }) {
           ))}
         </tbody>
       </table>
-      <AblationFindings conditions={ablation.conditions} nSeeds={1} />
+      <AblationFindings conditions={ablation.conditions} nSeeds={ablation.n_seeds ?? 1} />
+    </div>
+  )
+}
+
+const EXP_LABEL = {
+  baselines: 'Baselines (no poison)', baselines_poison: 'Baselines with planted wrong notes',
+  poison: 'Static vs ATMC with planted wrong notes', ablation: 'Ablation', agent: 'Agent components',
+}
+const pct = (m, d = 1) => (m?.mean == null ? '–' : `${(m.mean * 100).toFixed(d)}%`)
+const num = (m, d = 1) => (m?.mean == null ? '–' : `${m.mean.toFixed(d)} ± ${(m.sd ?? 0).toFixed(d)}`)
+
+function Comparison({ c }) {
+  const rows = [['in-run', c.in_run], ['held-out', c.heldout]].filter(([, p]) => p && p.n)
+  return rows.map(([label, p]) => (
+    <li key={c.condition + label}>
+      <strong>{c.condition}</strong> vs {c.vs} ({label}, {p.n} paired tasks): difference {p.diff >= 0 ? '+' : ''}{(p.diff * 100).toFixed(1)} points,
+      95% CI [{(p.ci95[0] * 100).toFixed(1)}, {(p.ci95[1] * 100).toFixed(1)}], better/worse {p.b_better}/{p.a_better},
+      McNemar p = {p.p_mcnemar.toFixed(3)}{p.p_mcnemar >= 0.05 ? ' — not significant' : ''}
+    </li>
+  ))
+}
+
+function Evaluation() {
+  const [list, setList] = useState(null)
+  const [sel, setSel] = useState(null)
+  const [rep, setRep] = useState(null)
+
+  useEffect(() => {
+    getJSON('/api/eval').then(l => { setList(l); if (l.length) setSel(l.find(e => e.experiment === 'baselines_poison') || l[0]) }).catch(() => setList([]))
+  }, [])
+  useEffect(() => {
+    if (sel) getJSON(`/api/eval?experiment=${sel.experiment}&domain=${sel.domain}`).then(setRep).catch(() => setRep(null))
+  }, [sel])
+
+  if (!list) return null
+  if (!list.length) return <p className="muted">No evaluation runs saved yet (run pilot/experiment.py).</p>
+  const seeds = rep ? Math.min(...rep.conditions.map(c => c.seeds.length)) : 0
+  return (
+    <div className="dashboard eval-block">
+      <h2>Evaluation (current harness)</h2>
+      <p className="muted">Every row is the mean ± sd over the seeds actually run. Comparisons are paired: same task, same seed.</p>
+      <div className="eval-tabs">
+        {list.map(e => (
+          <button key={e.experiment + e.domain}
+            className={`nav-btn ${sel && sel.experiment === e.experiment && sel.domain === e.domain ? 'nav-btn--active' : ''}`}
+            onClick={() => setSel(e)}>{EXP_LABEL[e.experiment] || e.experiment} · {e.domain}</button>
+        ))}
+      </div>
+      {rep && rep.conditions.length > 0 && (
+        <>
+          <table className="explorer-table">
+            <thead><tr>
+              <th>Condition</th><th>Seeds</th><th>Pass rate</th><th>Held-out</th><th>Poison in context*</th>
+              <th>Poison relied on</th><th>Memory size</th><th>Tokens/task</th>
+            </tr></thead>
+            <tbody>
+              {rep.conditions.map(c => (
+                <tr key={c.condition} className={c.condition === rep.reference ? 'row--highlight' : ''}>
+                  <td>{c.condition}</td><td>{c.seeds.length}</td>
+                  <td className="num">{pct(c.pass_rate)} ± {c.pass_rate.sd == null ? '–' : (c.pass_rate.sd * 100).toFixed(1)}</td>
+                  <td className="num">{pct(c.heldout_pass_rate)}</td>
+                  <td className="num">{num(c.poison_exposure_after_warmup)}</td>
+                  <td className="num">{num(c.poison_used)}</td>
+                  <td className="num">{num(c.final_memory_size, 0)}</td>
+                  <td className="num">{c.tokens_in.mean == null ? '–' : Math.round(c.tokens_in.mean)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="muted">{rep.warmup_note} Reference condition highlighted: {rep.reference}.</p>
+          {rep.comparisons.length > 0 && <ul className="muted">{rep.comparisons.map(c => <Comparison key={c.condition} c={c} />)}</ul>}
+          {seeds < 3 && <p className="muted"><strong>Preliminary:</strong> at least one condition has fewer than 3 seeds, so treat differences with caution.</p>}
+        </>
+      )}
     </div>
   )
 }
@@ -139,6 +213,7 @@ export default function Results() {
           <p className="muted">Every number here comes from real experiment logs in pilot/results/, not hand-picked runs.</p>
         </div>
       </div>
+      <Evaluation />
       <HeadlineStat stats={stats} />
       <PilotDashboard stats={stats} />
       <AblationTable ablation={ablation} />

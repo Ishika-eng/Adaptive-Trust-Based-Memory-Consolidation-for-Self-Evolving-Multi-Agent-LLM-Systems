@@ -27,7 +27,7 @@ function MemoryTable({ items, storeLabel }) {
     <div className="explorer-table-wrap">
       <h3>{storeLabel} <span className="muted">({items.length} notes)</span></h3>
       {items.length === 0 ? (
-        <p className="muted">Empty — go run the demo first to populate this notebook.</p>
+        <p className="muted">Empty — run some tasks on the Assistant (or Demo) page first.</p>
       ) : (
         <table className="explorer-table">
           <thead>
@@ -57,32 +57,45 @@ function MemoryTable({ items, storeLabel }) {
   )
 }
 
+const VIEWS = {
+  compare: { label: 'Side-by-side demo', stores: [['static', 'Baseline (remember everything)'], ['atmc', 'ATMC']] },
+  code: { label: 'Coding assistant', stores: [['code', 'Coding assistant memory (ATMC)']] },
+  math: { label: 'Math assistant', stores: [['math', 'Math assistant memory (ATMC)']] },
+}
+
 export default function MemoryExplorer() {
-  const [staticItems, setStaticItems] = useState([])
-  const [atmcItems, setAtmcItems] = useState([])
+  const [view, setView] = useState('code')
+  const [tables, setTables] = useState([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const load = () => {
-    setLoading(true)
-    Promise.all([getJSON('/api/memory/static'), getJSON('/api/memory/atmc')])
-      .then(([s, a]) => { setStaticItems(s); setAtmcItems(a) })
+    setLoading(true); setError(null)
+    Promise.all(VIEWS[view].stores.map(([k]) => getJSON(`/api/memory/${k}`)))
+      .then(setTables)
+      .catch(e => { setTables([]); setError(`Could not load memory: ${e.message}`) })
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [view])
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h2>Memory Bank Explorer</h2>
-          <p className="muted">Full, live contents of both notebooks — sort by trust to see which notes ATMC has learned to rely on least.</p>
+          <p className="muted">Full, live contents of the memory — sort by trust to see which notes ATMC relies on least.</p>
+        </div>
+        <div className="seg">
+          {Object.entries(VIEWS).map(([k, v]) => (
+            <button key={k} className={`seg-btn ${view === k ? 'seg-btn--on' : ''}`} onClick={() => setView(k)}>{v.label}</button>
+          ))}
         </div>
         <button className="btn btn--ghost" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
       </div>
+      {error && <div className="error-banner">{error}</div>}
       <div className="explorer-grid">
-        <MemoryTable items={staticItems} storeLabel="Baseline" />
-        <MemoryTable items={atmcItems} storeLabel="ATMC" />
+        {VIEWS[view].stores.map(([k, label], i) => <MemoryTable key={k} items={tables[i] || []} storeLabel={label} />)}
       </div>
     </div>
   )

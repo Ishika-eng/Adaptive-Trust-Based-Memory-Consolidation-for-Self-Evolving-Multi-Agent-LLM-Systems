@@ -57,6 +57,12 @@ def _validate(d: dict) -> None:
         raise ValueError("trust.minimum must be in [0, 1)")
     if d["embedding"]["backend"] not in {"fastembed", "gemini", "tfidf"}:
         raise ValueError(f"unknown embedding backend {d['embedding']['backend']!r}")
+    if d["agent"]["domain"] not in {"math", "code"}:
+        raise ValueError(f"unknown agent.domain {d['agent']['domain']!r}")
+    if d["agent"]["curriculum"] not in {"fixed", "random", "weakness"}:
+        raise ValueError(f"unknown agent.curriculum {d['agent']['curriculum']!r}")
+    if not 0.0 <= d["agent"]["curriculum_explore"] <= 1.0:
+        raise ValueError("agent.curriculum_explore must be in [0, 1]")
     if d["retrieval"]["top_k"] < 1:
         raise ValueError("retrieval.top_k must be >= 1")
 

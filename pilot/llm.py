@@ -1,6 +1,6 @@
-"""Thin wrapper around Gemini for the reasoning agent. The checker is
-deterministic (regex-extracted numeric answer vs ground truth) -- no need
-to burn a second LLM call verifying grade-school arithmetic."""
+"""Thin wrapper around Gemini: one retrying `complete()` call, token accounting,
+and the small parsers shared by all domains (numeric answer, USED citations).
+Prompts live in the domains; verification is deterministic, never an LLM judge."""
 from __future__ import annotations
 
 import os
@@ -13,16 +13,30 @@ from google.genai import types
 MODEL_NAME = "gemini-3.5-flash-lite"
 TEMPERATURE: float | None = None  # None = the API's own default
 MAX_RETRIES = 4
+MIN_INTERVAL_S = 0.0   # minimum spacing between calls; keeps every caller under the rate limit
+_last_call = 0.0
 
 _client = None
+
+# Running totals across all calls in this process (for the efficiency metrics).
+USAGE = {"calls": 0, "prompt_tokens": 0, "output_tokens": 0}
+
+
+class QuotaExhausted(RuntimeError):
+    """The API's *daily* quota is used up. Retrying is pointless -- it resets in hours."""
+
+
+def usage_snapshot() -> dict:
+    return dict(USAGE)
 
 
 def configure(cfg) -> None:
     """Apply model settings from configs/default.yaml (model.*)."""
-    global MODEL_NAME, TEMPERATURE, MAX_RETRIES
+    global MODEL_NAME, TEMPERATURE, MAX_RETRIES, MIN_INTERVAL_S
     MODEL_NAME = cfg.model.name
     TEMPERATURE = cfg.model.temperature
     MAX_RETRIES = cfg.model.max_retries
+    MIN_INTERVAL_S = cfg.model.request_interval_s
 
 
 def _get_client():
@@ -36,46 +50,33 @@ def _get_client():
     return _client
 
 
-def _generate(prompt: str) -> str:
-    """One LLM call with exponential-backoff retries (rate limits, transient errors)."""
+def complete(prompt: str) -> str:
+    """One LLM call with exponential-backoff retries (rate limits, transient errors).
+    Raises QuotaExhausted immediately on a daily-quota error instead of retrying."""
+    global _last_call
     client = _get_client()
     gen_config = types.GenerateContentConfig(temperature=TEMPERATURE) if TEMPERATURE is not None else None
     last_err = None
     for attempt in range(MAX_RETRIES):
+        wait = MIN_INTERVAL_S - (time.monotonic() - _last_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_call = time.monotonic()
         try:
             resp = client.models.generate_content(model=MODEL_NAME, contents=prompt, config=gen_config)
-            return resp.text
+            USAGE["calls"] += 1
+            meta = getattr(resp, "usage_metadata", None)
+            if meta is not None:
+                USAGE["prompt_tokens"] += getattr(meta, "prompt_token_count", 0) or 0
+                USAGE["output_tokens"] += getattr(meta, "candidates_token_count", 0) or 0
+            return resp.text or ""
         except Exception as e:
+            if "PerDay" in str(e):
+                raise QuotaExhausted(str(e)[:300]) from e
             last_err = e
-            time.sleep(2 ** attempt * 2)
+            m = re.search(r"retry in ([\d.]+)s", str(e))
+            time.sleep(float(m.group(1)) + 1 if m else 2 ** attempt * 2)
     raise RuntimeError(f"Gemini call failed after {MAX_RETRIES} retries: {last_err}")
-
-
-def solve(question: str, retrieved_memories: list[str]) -> str:
-    """Ask the model to solve a GSM8K problem, optionally with retrieved
-    past reflections as few-shot context. Returns raw model text."""
-    if retrieved_memories:
-        context = "\n\n".join(f"Past experience {i+1}: {m}" for i, m in enumerate(retrieved_memories))
-        prefix = (
-            "Here are some past problem-solving experiences that may or may not be relevant:\n"
-            f"{context}\n\n"
-        )
-        used_instruction = (
-            " After that, add a line of the exact form 'USED: <comma-separated numbers>' "
-            "listing which of the numbered past experiences above you actually relied on to "
-            "solve this problem, or 'USED: none' if you didn't use any of them."
-        )
-    else:
-        prefix = ""
-        used_instruction = ""
-
-    prompt = (
-        f"{prefix}Solve this grade-school math problem step by step. "
-        f"End your response with a line of the exact form '#### <final numeric answer>'.{used_instruction}\n\n"
-        f"Problem: {question}"
-    )
-
-    return _generate(prompt)
 
 
 def summarize(texts: list[str]) -> str:
@@ -89,7 +90,7 @@ def summarize(texts: list[str]) -> str:
         "them in a memory bank without losing important information.\n\n"
         f"{joined}\n\nConsolidated note:"
     )
-    return _generate(prompt).strip()
+    return complete(prompt).strip()
 
 
 _NUM_RE = re.compile(r"-?\d[\d,]*\.?\d*")

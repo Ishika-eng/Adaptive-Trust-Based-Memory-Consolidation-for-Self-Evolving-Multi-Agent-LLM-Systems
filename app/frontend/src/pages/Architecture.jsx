@@ -1,18 +1,24 @@
 const PARTS = [
   { n: 1, name: 'Goal', role: 'Receive or generate a task to work on', status: 'roadmap' },
-  { n: 2, name: 'Planner', role: 'Break the goal into concrete steps', status: 'roadmap' },
-  { n: 3, name: 'Actor', role: 'Actually do something — run code, use a tool', status: 'roadmap' },
-  { n: 4, name: 'Checker', role: 'Verify whether the attempt succeeded', status: 'roadmap' },
+  { n: 2, name: 'Planner', role: 'Break the goal into concrete steps (never sees memory)', status: 'implemented' },
+  { n: 3, name: 'Actor', role: 'Write code / solve the task, using retrieved memory', status: 'implemented' },
+  { n: 4, name: 'Checker', role: 'Run the real tests in a sandbox (code) or compare to gold (math)', status: 'implemented' },
   { n: 5, name: 'Memory (ATMC)', role: 'Decide what to keep, trust, and forget', status: 'built' },
-  { n: 6, name: 'Reflection', role: 'Turn outcomes into reusable insight', status: 'roadmap' },
-  { n: 7, name: 'Curriculum', role: 'Choose what to attempt next, autonomously', status: 'roadmap' },
-  { n: 8, name: 'Persistence', role: 'Keep accumulating state across sessions', status: 'roadmap' },
+  { n: 6, name: 'Reflection', role: 'Turn outcomes into reusable insight', status: 'implemented' },
+  { n: 7, name: 'Curriculum', role: 'Choose what to attempt next (fixed / random / weakness-targeted)', status: 'implemented' },
+  { n: 8, name: 'Persistence', role: 'Memory and history saved in SQLite across restarts', status: 'implemented' },
 ]
 
+const STATUS_LABEL = {
+  built: '✓ Built & validated',
+  implemented: 'Implemented — evaluation in progress',
+  roadmap: 'Roadmap',
+}
+
 const ROADMAP = [
-  { month: 'Month 1', focus: 'Harden the core', items: 'Full ablation matrix at 5+ seeds, a real Planner agent, self-generated reflections' },
-  { month: 'Month 2', focus: 'Give the agent something to act in', items: 'Coding-assistant domain (HumanEval/MBPP), code-execution checker, sandboxed tool execution, persistent storage' },
-  { month: 'Month 3', focus: 'Autonomy', items: 'Self-directed curriculum, a reusable skill library, final full evaluation, paper write-up' },
+  { month: 'Done', focus: 'Working loop', items: 'Planner, sandboxed code Actor + test Checker, Reflection, Curriculum, persistence, real embeddings, baselines, paired statistics' },
+  { month: 'In progress', focus: 'Full evaluation', items: 'More seeds (free-tier API quota limits runs per day), ablation on both domains, held-out scoring for the curriculum' },
+  { month: 'Remaining', focus: 'Deliverables', items: 'Paper draft, final documentation, demo video' },
 ]
 
 export default function Architecture() {
@@ -21,7 +27,7 @@ export default function Architecture() {
       <div className="page-header">
         <div>
           <h2>Architecture</h2>
-          <p className="muted">A self-evolving agent needs eight parts, working as a repeating loop. Here's where this project actually stands.</p>
+          <p className="muted">A self-evolving agent needs eight parts, working as a repeating loop. Here's where each part stands — implemented does not mean validated.</p>
         </div>
       </div>
 
@@ -47,8 +53,8 @@ export default function Architecture() {
               <td>{p.name}</td>
               <td>{p.role}</td>
               <td>
-                <span className={`pill ${p.status === 'built' ? 'pill--good' : 'pill--pending'}`}>
-                  {p.status === 'built' ? '✓ Built & validated' : 'Roadmap'}
+                <span className={`pill ${p.status === 'built' ? 'pill--good' : p.status === 'implemented' ? 'pill--impl' : 'pill--pending'}`}>
+                  {STATUS_LABEL[p.status]}
                 </span>
               </td>
             </tr>
@@ -57,12 +63,11 @@ export default function Architecture() {
       </table>
 
       <p className="arch-note">
-        We deliberately built and rigorously validated the hardest, most overlooked piece — reliable memory —
-        before building the rest of the loop around it. A self-evolving agent with an unreliable memory isn't
-        worth building at all, so proving the memory mechanism works came first.
+        The memory mechanism was validated first, in isolation. The rest of the loop is now built around it; its
+        individual contribution (planner, reflection, curriculum) is still being measured and is not yet claimed.
       </p>
 
-      <h3 className="roadmap-title">Roadmap to the Full Agent</h3>
+      <h3 className="roadmap-title">Project status</h3>
       <table className="explorer-table roadmap-table">
         <thead>
           <tr><th>Phase</th><th>Focus</th><th>Key additions</th></tr>

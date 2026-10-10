@@ -3,7 +3,7 @@ arguments are mapped from config keys, so scripts and the demo app cannot
 drift apart."""
 from __future__ import annotations
 
-from stores import AdaptiveTrustStore, StaticMemoryStore
+from stores import AdaptiveTrustStore, NoMemoryStore, ReflexionStyleStore, StaticMemoryStore
 
 
 def build_static() -> StaticMemoryStore:
@@ -40,3 +40,19 @@ def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_o
         label=label,
         **pillars,
     )
+
+
+STORE_KINDS = ("none", "static", "reflexion", "atmc")
+
+
+def build_store(kind: str, cfg, embedder, summarize_fn, **pillar_overrides):
+    """One entry point for every memory system compared in the evaluation."""
+    if kind == "none":
+        return NoMemoryStore()
+    if kind == "static":
+        return build_static()
+    if kind == "reflexion":
+        return ReflexionStyleStore(buffer_size=cfg.retrieval.top_k)
+    if kind == "atmc":
+        return build_atmc(cfg, embedder, summarize_fn, **pillar_overrides)
+    raise ValueError(f"unknown store kind {kind!r}; expected one of {STORE_KINDS}")

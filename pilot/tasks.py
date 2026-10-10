@@ -13,7 +13,7 @@ def load_tasks(cfg, n: int, seed: int) -> list[dict]:
     """Seeded random sample of n GSM8K test problems, each with its gold answer."""
     path = ROOT / cfg.evaluation.dataset
     with open(path) as f:
-        tasks = [json.loads(line) for line in f]
+        tasks = [{**json.loads(line), "id": f"gsm8k/{i}"} for i, line in enumerate(f)]
     random.Random(seed).shuffle(tasks)
     tasks = tasks[:n]
     for t in tasks:

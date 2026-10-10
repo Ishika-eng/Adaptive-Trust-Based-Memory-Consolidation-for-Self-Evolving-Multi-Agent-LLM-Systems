@@ -49,7 +49,24 @@ evaluation:
   n_tasks: 40
   seeds: [42, 123, 456]
   poison_every: 3             # poison every k-th task in the sequence
+  heldout: 0                  # unseen tasks scored with frozen memory after training (0 = skip)
+
+agent:
+  domain: math                # math | code
+  use_planner: false          # decompose the task before solving (1 extra LLM call per task)
+  use_reflection: false       # LLM-written lesson after a failure (1 extra call per failure)
+  curriculum: random          # fixed | random | weakness (practise where past failures cluster)
+  curriculum_explore: 0.2     # chance of a random pick under 'weakness'
+
+coding:
+  datasets: [humaneval, mbpp]   # pool code tasks are sampled from
+  timeout_s: 10               # wall-clock limit per test run in the sandbox
 
 app:
-  n_sample_tasks: 20          # size of the fixed question pool in the demo
+  n_sample_tasks: 20          # size of the fixed question pool in the side-by-side demo
   sample_seed: 42
+  assistant_pool: 60          # tasks the autonomous assistant can choose from
+  assistant:                  # the full agent shown in the Assistant tab
+    use_planner: true
+    use_reflection: true
+    curriculum: weakness

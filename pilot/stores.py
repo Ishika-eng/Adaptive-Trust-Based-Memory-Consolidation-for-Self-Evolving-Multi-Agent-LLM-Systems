@@ -9,7 +9,7 @@
   (`enable_trust`, `enable_forgetting`, `enable_compression`) so the exact
   4-row ablation matrix (Full System / w/o Trust / w/o Forgetting /
   w/o Compression) can be constructed from this one class -- see
-  `run_ablation.py`. Importance is never toggled off, matching the README's
+  the `ablation` preset of `experiment.py`. Importance is never toggled off, matching the README's
   own table (it has no "w/o Importance" row).
 
 Note on naming: an unrelated prior-art paper (arXiv 2606.25161) already holds
@@ -50,6 +50,57 @@ class StaticMemoryStore:
 
     def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
         pass  # baseline has no trust concept -- nothing to update
+
+    def size(self):
+        return len(self.items)
+
+
+class NoMemoryStore:
+    """Control: the agent never remembers anything."""
+
+    name = "none"
+
+    def __init__(self):
+        self.items: list[MemoryItem] = []
+
+    def add(self, text, embedding, correct, is_poison: bool = False):
+        pass
+
+    def retrieve(self, query_embedding, k: int = 3):
+        return []
+
+    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
+        pass
+
+    def size(self):
+        return 0
+
+
+class ReflexionStyleStore:
+    """Reflexion-style baseline: a small buffer of the most recent *failure*
+    reflections, retrieved by recency alone (no similarity, no trust, no decay).
+    Successes are not stored -- verbal reflection on failure is the whole idea."""
+
+    name = "reflexion"
+
+    def __init__(self, buffer_size: int = 3):
+        self.buffer_size = buffer_size
+        self.items: list[MemoryItem] = []
+
+    def add(self, text, embedding, correct, is_poison: bool = False):
+        if correct and not is_poison:
+            return
+        self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison))
+        self.items = self.items[-self.buffer_size:]
+
+    def retrieve(self, query_embedding, k: int = 3):
+        chosen = self.items[-k:]
+        for m in chosen:
+            m.hits += 1
+        return list(reversed(chosen))
+
+    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
+        pass
 
     def size(self):
         return len(self.items)

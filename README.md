@@ -4,9 +4,9 @@
 
 This project builds a **self-evolving multi-agent LLM system**: an agent that autonomously plans, acts, checks its own work, and improves over time by curating what it remembers and trusts.
 
-That full agent is **not built yet**. What exists today, validated, is its **memory subsystem — ATMC (Adaptive Trust-based Memory Consolidation)**. ATMC is the component responsible for one specific job: deciding which past experiences an agent should trust, keep, and retrieve, versus discard — using dynamic Trust Scoring ($T$), Importance Prioritization ($I$), and Adaptive Forgetting ($F$) instead of storing every reflection unweighted forever.
+The core of that agent, validated, is its **memory subsystem — ATMC (Adaptive Trust-based Memory Consolidation)**; the surrounding loop (planner, sandboxed code actor and tests, reflection, curriculum, persistence) is now implemented and being evaluated. ATMC is the component responsible for one specific job: deciding which past experiences an agent should trust, keep, and retrieve, versus discard — using dynamic Trust Scoring ($T$), Importance Prioritization ($I$), and Adaptive Forgetting ($F$) instead of storing every reflection unweighted forever.
 
-**The relationship, stated plainly:** ATMC is the memory-governance piece a self-evolving agent needs. It is one component, not the whole agent — the agent also needs planning, tool use, and autonomous goal-setting, none of which exist yet (see Roadmap). Do not read "ATMC" and "the self-evolving agent" as the same thing anywhere in this document — where they overlap, it's called out explicitly.
+**The relationship, stated plainly:** ATMC is the memory-governance piece a self-evolving agent needs. It is one component, not the whole agent — the agent also needs planning, tool use, and autonomous goal-setting (implemented, see Part B below, but not yet validated to the same standard). Do not read "ATMC" and "the self-evolving agent" as the same thing anywhere in this document — where they overlap, it's called out explicitly.
 
 > **Naming note:** this project was originally developed under the working name "TrustMem-Agent." It has been renamed to ATMC to avoid collision with an unrelated prior-art paper, *TRUSTMEM: Learning Trustworthy Memory Consolidation for LLM Agents with Long-Term Memory* (arXiv 2606.25161), which targets a different problem (RL-trained verification of memory-editing operations) but shares the name and the general subfield.
 
@@ -17,32 +17,36 @@ That full agent is **not built yet**. What exists today, validated, is its **mem
 ### Part A — ATMC (the memory subsystem): validated, working
 
 **A real, reproducible experimental result:**
-Trust-gated memory retrieval reduces exposure to deliberately planted incorrect memories by **8.0× (± 0.54 across 3 seeds)** versus a static "remember everything" baseline, with no accuracy cost, on GSM8K. This is direct support for Hypothesis H1 (Section 11). Full logs: [`pilot/results/`](pilot/results/).
+On GSM8K with deliberately planted wrong notes, trust-gated retrieval cut exposure to those notes by about **10×** versus a static "remember everything" baseline (3 seeds, real sentence embeddings, no accuracy loss). Two caveats matter: (1) ATMC's remaining exposures are a structural cold-start floor — in the first three tasks the poison notes are the only memories, so nothing can distinguish them yet; after warm-up ATMC's exposure was 0 versus ~51 for static. (2) A note that is cited *and* ends up in a correct answer still gains trust, so a wrong note the model happens to cite on a right answer is not penalised. Logs: [`pilot/results/`](pilot/results/).
+
+**Code domain (HumanEval/MBPP, 40 tasks, planted notes that are verified to fail their tests):** the model already passes ~89% with no memory, so accuracy does not separate the systems (all McNemar p = 1.0). What differs is poison: static memory had ~53 poison exposures per run after warm-up and relied on a planted note ~9 times; ATMC had 0 after warm-up on the one seed finished so far (seed 42; seeds 123 and 456 are pending the daily API quota). Treat the ATMC code result as preliminary.
 
 **Built and working, all of it ATMC-scoped (Sections 2, 3, 5 below):**
 - Core scoring math — Trust, Importance, Decay, Composite Score (Section 2) → [`pilot/memory.py`](pilot/memory.py)
 - Memory store with the hard verification gate, trust-gated composite retrieval, and citation-conditioned trust updates (a memory's trust only moves if the model says it actually relied on it — closes a credit-assignment gap found during testing) → [`pilot/stores.py`](pilot/stores.py)
 - A deterministic Checker (ground-truth comparison, one of the mechanisms Section 1.2 allows) and a Reasoning Agent (Gemini) calling into ATMC → [`pilot/llm.py`](pilot/llm.py)
-- Pilot scripts reproducing the result above across multiple seeds → [`pilot/run_pilot.py`](pilot/run_pilot.py), [`pilot/run_poison_pilot.py`](pilot/run_poison_pilot.py)
+- Pilot scripts reproducing the result above across multiple seeds → [`pilot/experiment.py`](pilot/experiment.py) (`poison` preset)
 - A full-stack demo app (FastAPI backend + React frontend) running ATMC live, interactively, so the result above can be watched rather than just read → [`app/`](app/)
 
 **Also built since the first pilot:** Memory Compression (the fourth pillar, independently switchable), the 4-way ablation runner (Full / w/o Trust / w/o Forgetting / w/o Compression), real sentence embeddings, a central config file, and SQLite persistence for the demo.
 
-**Not yet built, still ATMC-scoped:**
-- Benchmarks beyond GSM8K (HumanEval/MBPP planned)
-- Baselines beyond static memory (Reflexion-style, SAGE-style, A-MEM — Section 9)
-- Multi-seed (5+) runs of the ablation and full-dataset evaluation — current runs are pilots (40 tasks, 3 seeds)
+**Not yet done, still ATMC-scoped:**
+- Ablation beyond a single seed (math, seed 42). The earlier TF-IDF-era claim that "forgetting matters more than trust" did **not** hold under real embeddings: removing trust gave 120 poison exposures versus 6 (full) and 43 (w/o forgetting). This is one seed and must be repeated. Forgetting acts here through decay in the ranking, not deletion — pruning needs roughly 70 steps to fire, longer than these runs. The mid-semester review slides still contain the superseded claim.
+- Compression merges notes (memory 42 vs 54 in the ablation) without raising poison exposure, but merging can mix a poisoned note into a clean summary (`n_poison_laundered` counts this).
+- Baselines beyond static and a Reflexion-style buffer (SAGE-style, A-MEM — Section 9).
+- Multi-seed (5+) runs and full-dataset evaluation; the Gemini free tier allows ~500 calls/day, which is what limits seed count.
 
-### Part B — The self-evolving agent (built around ATMC): not started
+### Part B — The self-evolving agent (built around ATMC): implemented, evaluation in progress
 
-Everything an agent needs *beyond* memory governance is currently missing entirely:
-- A separate Planner Agent — right now the Reasoning Agent solves each task directly with no decomposition step
-- Tool/code execution — the agent cannot currently act in any environment, only answer isolated questions
-- Persistent storage — memory currently lives in a Python process and resets on restart
-- Autonomous curriculum generation — tasks are currently fed in from a fixed dataset in a fixed order, not chosen by the agent itself
-- A reusable skill library — memories are stored as raw text, not consolidated into reusable procedures
+One shared loop ([`pilot/agent.py`](pilot/agent.py)) serves two domains (math, code):
+- **Planner** ([`pilot/planner.py`](pilot/planner.py)) — writes a plan without seeing memory.
+- **Actor + Checker** — code is run against the real tests in a subprocess sandbox ([`pilot/sandbox.py`](pilot/sandbox.py): macOS `sandbox-exec` denying network, writes outside a temp dir and reads of secrets; scrubbed environment; resource limits). It is **not** a hard security boundary against malicious code.
+- **Reflection** ([`pilot/reflection.py`](pilot/reflection.py)) — turns failures into lessons stored in ATMC memory.
+- **Curriculum** ([`pilot/curriculum.py`](pilot/curriculum.py)) — fixed, random, or weakness-targeted task choice.
+- **Persistence** — memory and history are saved in SQLite and survive restarts.
+- **Domains** ([`pilot/domains/`](pilot/domains/)) — GSM8K and HumanEval/MBPP (four MBPP tasks with known-broken tests are excluded).
 
-**In short: Part A is a validated result. Part B is a 3-month build plan, starting from zero, using Part A as its foundation.**
+"Implemented" is not "validated": the individual contribution of planner, reflection and curriculum has not yet been measured (preset `agent`, which scores held-out tasks with frozen memory). Still absent: a reusable skill library — memories are raw text, not consolidated procedures. The system is training-free: the LLM's weights never change; "self-evolving" here means the memory and curriculum change.
 
 ## Getting Started
 
@@ -53,13 +57,17 @@ pip install -r requirements.txt
 echo "GEMINI_API_KEY=your_key_here" > .env
 ```
 
-**Run the experiments:**
+**Run the experiments** (each run is saved on its own and skipped if already done, so a run stopped by the API quota resumes when you re-run the same command):
 ```bash
-python3 pilot/run_poison_pilot.py            # static vs ATMC under planted wrong memories
-python3 pilot/run_ablation.py                # Full / w/o Trust / w/o Forgetting / w/o Compression
-PILOT_SEED=123 python3 pilot/run_poison_pilot.py   # a different seed
+python3 pilot/experiment.py --list                                  # presets and conditions
+python3 pilot/experiment.py poison    --domain math                 # static vs ATMC under planted wrong notes
+python3 pilot/experiment.py ablation  --domain math                 # Full / w/o Trust / w/o Forgetting / w/o Compression
+python3 pilot/experiment.py baselines_poison --domain code          # none / static / Reflexion-style / ATMC
+python3 pilot/experiment.py agent     --domain code --heldout 20    # planner, reflection, curriculum
+python3 pilot/report.py baselines_poison --domain code              # tables, bootstrap CIs, exact McNemar
+pilot/.venv/bin/python -m pytest tests -q                           # 83 tests
 ```
-Quick overrides: `PILOT_SEED`, `PILOT_N_TASKS`, `PILOT_EMBEDDING` (`fastembed` | `gemini` | `tfidf`).
+Results go to `pilot/results/eval/`. Quick overrides: `PILOT_SEED`, `PILOT_N_TASKS`, `PILOT_EMBEDDING` (`fastembed` | `gemini` | `tfidf`).
 
 **Configuration:** every tunable (trust reward/penalty and minimum, decay rates, composite
 weights, compression schedule, model and temperature, embedder, seeds) lives in
@@ -82,13 +90,11 @@ cd app/frontend && npm install && npm run dev
 
 ## Roadmap
 
-Three-month plan from the validated core (ATMC) to the full self-evolving agent described in this document.
-
-| Phase | Focus | Key additions |
-|---|---|---|
-| **Month 1** | Harden the core | Full ablation matrix, more seeds, self-reflection generation, a real Planner Agent |
-| **Month 2** | Give the agent something to act in | Second benchmark + code-execution Checker, sandboxed tool execution, persistent storage |
-| **Month 3** | Autonomy | Self-directed curriculum, a reusable skill library (closes the Compression gap), final full evaluation, paper write-up |
+| Status | Item |
+|---|---|
+| Done | Real embeddings + central config; coding domain with sandboxed actor and test checker; planner, reflection, curriculum, persistence; unified experiment harness with paired statistics; 4-page app plus Assistant page |
+| In progress | Full evaluation: remaining ATMC code seeds, math poison, ablation at 3–5 seeds on both domains, held-out agent comparison (limited by ~500 API calls/day) |
+| Remaining | Paper draft, correcting the stale "forgetting > trust" claim in the review slides, demo video, a skill library (optional) |
 
 ---
 
@@ -1012,16 +1018,20 @@ What actually exists in this repository right now:
 │   ├── embeddings.py             # text -> vector: fastembed (default) | gemini | tfidf
 │   ├── config.py, factory.py     # config loading/validation; builds stores from config
 │   ├── tasks.py                  # task sampling and poison construction (shared)
+│   ├── agent.py, planner.py, reflection.py, curriculum.py   # the self-evolving loop
+│   ├── sandbox.py                # isolated execution of generated code
+│   ├── domains/                  # gsm8k (math) and coding (HumanEval/MBPP)
+│   ├── report.py                 # tables + paired statistics from saved runs
 │   ├── llm.py                    # Reasoning Agent (Gemini) + deterministic Checker
-│   ├── run_pilot.py              # organic-mistake pilot (ceiling-effect finding)
-│   ├── run_poison_pilot.py       # poison-memory pilot (static vs ATMC)
-│   ├── run_ablation.py           # 4-way ablation (Section 8)
-│   ├── data/gsm8k_test.jsonl     # benchmark data
+│   ├── experiment.py             # all experiments: poison, ablation, baselines, agent (Section 8)
+│   ├── data/                     # gsm8k_test, HumanEval, mbpp
 │   └── results/                  # experiment logs (tfidf_baseline/ = results under the original TF-IDF embedder)
 │
+├── tests/                        # 83 pytest tests (scoring math, stores, sandbox, domains, agent, API)
+│
 └── app/                          # full-stack demo
-    ├── backend/main.py, db.py    # FastAPI wrapper; SQLite persistence
-    └── frontend/                 # React (Vite): Demo, Memory Explorer, Results, Architecture
+    ├── backend/main.py, db.py    # FastAPI (assistant, memory, eval endpoints); SQLite persistence
+    └── frontend/                 # React (Vite): Assistant, Demo, Memory Explorer, Results, Architecture
 ```
 
 ## 14.2 Target Structure (by end of Month 3)
