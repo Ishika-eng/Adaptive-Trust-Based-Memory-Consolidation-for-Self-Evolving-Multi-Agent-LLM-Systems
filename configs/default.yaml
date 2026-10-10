@@ -7,6 +7,7 @@ model:
   temperature: 0.0            # README 4.2: deterministic reasoning where supported
   max_retries: 4
   request_interval_s: 4.5     # pacing for the free tier (15 requests/min)
+  cache: true                 # reuse identical prompts (only active at temperature 0); saves API quota
 
 embedding:
   backend: fastembed          # fastembed (local) | gemini (API) | tfidf (legacy baseline)

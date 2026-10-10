@@ -154,6 +154,8 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
         "n_compressions": getattr(store, "n_compressions", 0),
         "n_poison_laundered": getattr(store, "n_poison_laundered", 0),
         "llm_calls": usage1["calls"] - usage0["calls"],
+        "api_calls": usage1["api_calls"] - usage0["api_calls"],
+        "cache_hits": usage1["cache_hits"] - usage0["cache_hits"],
         "tokens_in": usage1["prompt_tokens"] - usage0["prompt_tokens"],
         "tokens_out": usage1["output_tokens"] - usage0["output_tokens"],
         "mean_retrieval_ms": sum(s["retrieval_ms"] for s in steps) / n,
@@ -208,7 +210,7 @@ def main():
     domain = get_domain(args.domain, cfg)
     embedder = make_embedder(cfg, corpus=[t["question"] for t in domain.load_tasks(cfg, 200, 0)])
 
-    todo = [(c, s) for c in preset.conditions for s in seeds if not only or c in only]
+    todo = [(c, s) for s in seeds for c in preset.conditions if not only or c in only]   # seed-major: a quota stop leaves whole seeds
     est = estimate_calls(preset, n, heldout, len(seeds), only)
     print(f"{args.preset} / {args.domain}: {len(todo)} runs, n={n}, heldout={heldout}, seeds={seeds}, "
           f"embedder={embedder.name}\n≈{est} LLM calls (free tier: 500/day for this model)\n", flush=True)

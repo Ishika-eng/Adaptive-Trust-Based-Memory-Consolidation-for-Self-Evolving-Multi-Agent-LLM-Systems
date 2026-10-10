@@ -19,7 +19,7 @@ The core of that agent, validated, is its **memory subsystem — ATMC (Adaptive 
 **A real, reproducible experimental result:**
 On GSM8K with deliberately planted wrong notes, trust-gated retrieval cut exposure to those notes by about **10×** versus a static "remember everything" baseline (3 seeds, real sentence embeddings, no accuracy loss). Two caveats matter: (1) ATMC's remaining exposures are a structural cold-start floor — in the first three tasks the poison notes are the only memories, so nothing can distinguish them yet; after warm-up ATMC's exposure was 0 versus ~51 for static. (2) A note that is cited *and* ends up in a correct answer still gains trust, so a wrong note the model happens to cite on a right answer is not penalised. Logs: [`pilot/results/`](pilot/results/).
 
-**Code domain (HumanEval/MBPP, 40 tasks, planted notes that are verified to fail their tests):** the model already passes ~89% with no memory, so accuracy does not separate the systems (all McNemar p = 1.0). What differs is poison: static memory had ~53 poison exposures per run after warm-up and relied on a planted note ~9 times; ATMC had 0 after warm-up on the one seed finished so far (seed 42; seeds 123 and 456 are pending the daily API quota). Treat the ATMC code result as preliminary.
+**Code domain (HumanEval/MBPP, 40 tasks, planted notes that are verified to fail their tests):** the model already passes ~89% with no memory, so accuracy does not separate the systems (all McNemar p = 1.0). What differs is poison: static memory had ~53 poison exposures per run after warm-up and relied on a planted note ~9 times; ATMC had 0 after warm-up on all 3 seeds. Accuracy is not separated (all paired McNemar p = 1.0; ATMC 88.3% vs no-memory 89.2%), so the code-domain benefit is poison protection, not pass rate.
 
 **Built and working, all of it ATMC-scoped (Sections 2, 3, 5 below):**
 - Core scoring math — Trust, Importance, Decay, Composite Score (Section 2) → [`pilot/memory.py`](pilot/memory.py)
@@ -31,10 +31,10 @@ On GSM8K with deliberately planted wrong notes, trust-gated retrieval cut exposu
 **Also built since the first pilot:** Memory Compression (the fourth pillar, independently switchable), the 4-way ablation runner (Full / w/o Trust / w/o Forgetting / w/o Compression), real sentence embeddings, a central config file, and SQLite persistence for the demo.
 
 **Not yet done, still ATMC-scoped:**
-- Ablation beyond a single seed (math, seed 42). The earlier TF-IDF-era claim that "forgetting matters more than trust" did **not** hold under real embeddings: removing trust gave 120 poison exposures versus 6 (full) and 43 (w/o forgetting). This is one seed and must be repeated. Forgetting acts here through decay in the ranking, not deletion — pruning needs roughly 70 steps to fire, longer than these runs. The mid-semester review slides still contain the superseded claim.
+- **Ablation (math 5 seeds, code 3 seeds):** removing trust lets ~111 planted wrong notes through on every seed versus 0 for the full system; removing forgetting is smaller and inconsistent (math 14.8 ± 20.3, code 26.0 ± 19.1); compression cuts memory 22% with no extra exposure. Pass rate does not separate any condition (p = 1.0). The earlier TF-IDF-era claim that "forgetting matters more than trust" did **not** hold under real embeddings; the mid-semester review slides still contain it. Forgetting acts through decay in the ranking, not deletion — pruning needs roughly 70 steps to fire, longer than these runs.
 - Compression merges notes (memory 42 vs 54 in the ablation) without raising poison exposure, but merging can mix a poisoned note into a clean summary (`n_poison_laundered` counts this).
 - Baselines beyond static and a Reflexion-style buffer (SAGE-style, A-MEM — Section 9).
-- Multi-seed (5+) runs and full-dataset evaluation; the Gemini free tier allows ~500 calls/day, which is what limits seed count.
+- The `agent` preset (planner/reflection/curriculum on held-out tasks) has not been run, and full-dataset evaluation is not done; the Gemini free tier allows ~500 calls/day, which limits seed count. Run-to-run noise at temperature 0 is a couple of tasks per 40, so differences of a few points are within noise.
 
 ### Part B — The self-evolving agent (built around ATMC): implemented, evaluation in progress
 
@@ -93,7 +93,8 @@ cd app/frontend && npm install && npm run dev
 | Status | Item |
 |---|---|
 | Done | Real embeddings + central config; coding domain with sandboxed actor and test checker; planner, reflection, curriculum, persistence; unified experiment harness with paired statistics; 4-page app plus Assistant page |
-| In progress | Full evaluation: remaining ATMC code seeds, math poison, ablation at 3–5 seeds on both domains, held-out agent comparison (limited by ~500 API calls/day) |
+| Done | Evaluations: code poison baselines (3 seeds), math poison (3 seeds), ablation on math (5 seeds) and code (3 seeds) |
+| In progress | Held-out agent-component comparison (planner, reflection, curriculum), limited by ~500 API calls/day |
 | Remaining | Paper draft, correcting the stale "forgetting > trust" claim in the review slides, demo video, a skill library (optional) |
 
 ---
