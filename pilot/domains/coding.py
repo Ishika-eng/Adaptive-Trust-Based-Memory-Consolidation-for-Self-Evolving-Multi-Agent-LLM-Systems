@@ -77,6 +77,14 @@ class CodingDomain(Domain):
     # ---- prompting / extraction -------------------------------------
     def build_prompt(self, task, memories, plan=None):
         prefix, used = memory_block(memories)
+        if task.get("dataset") == "user":
+            tests = f"\n\nYour code must pass these tests:\n{task['tests'][0]}" if task.get("tests") else ""
+            return (
+                f"{prefix}{plan_block(plan)}You are a careful Python coding assistant. First give a brief explanation "
+                f"(2-4 sentences) of your approach, then the complete working code in a single ```python code block "
+                f"(include any imports; do not add example usage or tests).{used}\n\n"
+                f"Request:\n{task['question']}{tests}"
+            )
         return (
             f"{prefix}{plan_block(plan)}Solve this Python programming task. Reply with the complete, working function "
             f"(including any imports it needs) in a single ```python code block.{used}\n\n"
@@ -88,8 +96,12 @@ class CodingDomain(Domain):
         if blocks:
             ep = task.get("entry_point")
             for b in blocks:  # prefer a block that defines the function we need
-                if ep is None or f"def {ep}" in b:
+                if (ep is None and task.get("dataset") != "user") or (ep and f"def {ep}" in b):
                     return b.strip("\n")
+            if task.get("dataset") == "user":
+                for b in blocks:
+                    if re.search(r"^\s*(def|class) ", b, re.MULTILINE):
+                        return b.strip("\n")
             return blocks[-1].strip("\n")
         text = _USED_LINE.sub("", raw).strip()
         return text or None
@@ -114,6 +126,8 @@ class CodingDomain(Domain):
         except SyntaxError as e:
             return Verdict(False, "syntax_error", f"line {e.lineno}: {e.msg}")
         res = run_python(self._program(task, answer), timeout_s=self.timeout_s)
+        if task.get("dataset") == "user" and not task.get("tests"):
+            return self._check_without_tests(res)
         if res.timed_out:
             return Verdict(False, "timeout", f"exceeded {self.timeout_s}s")
         if res.returncode == 0:
@@ -122,6 +136,30 @@ class CodingDomain(Domain):
         last = lines[-1] if lines else f"exit code {res.returncode}"
         stage = "wrong_answer" if "AssertionError" in res.stderr else "runtime_error"
         return Verdict(False, stage, last[:200])
+
+    def _check_without_tests(self, res) -> Verdict:
+        """A user task with no tests has no ground truth. The code can still fail objectively
+        (crash, hang), which is a verified failure; if it merely runs, the result is *unverified*
+        and memory waits for the user's verdict."""
+        if res.timed_out:
+            return Verdict(False, "timeout", f"exceeded {self.timeout_s}s")
+        if res.returncode != 0:
+            lines = [l for l in res.stderr.strip().splitlines() if l.strip()]
+            return Verdict(False, "runtime_error", (lines[-1] if lines else f"exit code {res.returncode}")[:200])
+        return Verdict(False, "unverified", res.stdout.strip()[:500], verified=False)
+
+    def explanation(self, raw: str) -> str:
+        """The prose of a reply: everything outside the code fences and the USED line."""
+        text = _FENCE.sub("", raw)
+        return _USED_LINE.sub("", text).strip()
+
+    @staticmethod
+    def user_task(question: str, tests: str = "", idx: int = 0) -> dict:
+        tests = tests.strip()
+        return {
+            "id": f"user/{idx}", "dataset": "user", "question": question.strip(), "entry_point": None,
+            "tests": [tests] if tests else [], "setup": "", "reference": "",
+        }
 
     # ---- memory notes ------------------------------------------------
     def reflection(self, task, raw, answer, verdict):

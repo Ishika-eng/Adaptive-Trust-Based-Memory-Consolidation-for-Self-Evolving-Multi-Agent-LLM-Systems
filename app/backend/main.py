@@ -91,6 +91,11 @@ def _quota_guard(fn):
         return fn()
     except llm.QuotaExhausted as e:
         raise HTTPException(429, f"Gemini daily quota exhausted — try again later. {str(e)[:120]}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        # An uncaught error would reach the browser as an opaque "Failed to fetch" (no CORS headers).
+        raise HTTPException(502, f"{type(e).__name__}: {str(e)[:300]}")
 
 
 def _save_compare():
@@ -299,6 +304,122 @@ def agent_reset(req: DomainRequest):
 
 
 # ---------------------------------------------------------------------------
+# 3. the chat coding assistant: the user's own questions
+# ---------------------------------------------------------------------------
+# A user task usually has no tests, so there is no ground truth. With tests, the sandbox
+# verifies the code and memory learns at once. Without them the answer is "unverified" and
+# memory learns only when the user says whether it worked (the user is the checker).
+def _build_chat_agent() -> Agent:
+    cfg = _assistant_cfg()
+    store = build_atmc(cfg, EMBEDDER, _summarize)
+    db.load_store("agent_chat", store, EMBEDDER.name)
+    return build_agent(cfg, store, EMBEDDER, DOMAINS["code"], [], seed=cfg.app.sample_seed)
+
+
+CHAT = {"agent": _build_chat_agent(), "turns": db.load_turns(), "pending": {}}
+MAX_PROMPT_CHARS = 4000
+
+
+class AskRequest(BaseModel):
+    prompt: str
+    tests: str = ""
+
+
+class FeedbackRequest(BaseModel):
+    id: str
+    correct: bool
+    comment: str = ""
+
+
+def _turn(result, turn_id: str, req: AskRequest) -> dict:
+    v, domain = result.verdict, DOMAINS["code"]
+    status = "unverified" if not v.verified else ("passed" if v.correct else "failed")
+    return {
+        "id": turn_id, "prompt": req.prompt.strip(), "tests": req.tests.strip(),
+        "explanation": domain.explanation(result.raw), "code": result.answer or "",
+        "plan": result.plan, "retrieved": _retrieved_json(result),
+        "status": status, "stage": v.stage, "detail": v.detail, "output": v.detail if status == "unverified" else "",
+        "lesson": result.lesson, "feedback": None,
+        "cost": {"tokens_in": result.tokens_in, "tokens_out": result.tokens_out,
+                 "retrieval_ms": round(result.retrieval_ms, 2)},
+        "memory_size": result.memory_size,
+    }
+
+
+def _save_chat():
+    db.save_store("agent_chat", CHAT["agent"].store, EMBEDDER.name)
+
+
+@app.post("/api/chat/ask")
+def chat_ask(req: AskRequest):
+    prompt = req.prompt.strip()
+    if not prompt:
+        raise HTTPException(400, "Type a coding question first.")
+    if len(prompt) > MAX_PROMPT_CHARS or len(req.tests) > MAX_PROMPT_CHARS:
+        raise HTTPException(400, f"Keep the question and tests under {MAX_PROMPT_CHARS} characters.")
+    with LOCK:
+        agent = CHAT["agent"]
+        turn_id = f"t{len(CHAT['turns']) + 1}"
+        task = DOMAINS["code"].user_task(prompt, req.tests, idx=len(CHAT["turns"]) + 1)
+        result = _quota_guard(lambda: agent.attempt(task))
+        if result.verdict.verified:
+            _quota_guard(lambda: agent.learn(result))
+            _save_chat()
+        else:
+            CHAT["pending"][turn_id] = result
+        turn = _turn(result, turn_id, req)
+        CHAT["turns"].append(turn)
+        db.save_turn(turn)
+    return turn
+
+
+@app.post("/api/chat/feedback")
+def chat_feedback(req: FeedbackRequest):
+    """The user's verdict on an unverified answer -- this is what lets memory learn from it."""
+    with LOCK:
+        turn = next((t for t in CHAT["turns"] if t["id"] == req.id), None)
+        if turn is None:
+            raise HTTPException(404, "unknown message")
+        if turn["feedback"] is not None or turn["status"] != "unverified":
+            raise HTTPException(409, "this answer was already verified")
+        result = CHAT["pending"].pop(req.id, None)
+        if result is None:
+            raise HTTPException(410, "this answer is from before the server restarted and can no longer be graded")
+        _quota_guard(lambda: CHAT["agent"].learn(result, correct=req.correct, feedback=req.comment))
+        turn.update(feedback={"correct": req.correct, "comment": req.comment.strip()},
+                    lesson=result.lesson, memory_size=result.memory_size)
+        _save_chat()
+        db.save_turn(turn)
+    return turn
+
+
+@app.get("/api/chat/history")
+def chat_history():
+    return CHAT["turns"]
+
+
+@app.get("/api/chat/summary")
+def chat_summary():
+    turns, store = CHAT["turns"], CHAT["agent"].store
+    good = sum(t["status"] == "passed" or (t["feedback"] or {}).get("correct", False) for t in turns)
+    return {
+        "asked": len(turns), "solved": good,
+        "awaiting_feedback": sum(t["status"] == "unverified" and t["feedback"] is None for t in turns),
+        "memory_size": store.size(), "n_compressions": store.n_compressions,
+        "isolation": ISOLATION,
+    }
+
+
+@app.post("/api/chat/reset")
+def chat_reset():
+    with LOCK:
+        db.clear_store("agent_chat")
+        db.clear_turns()
+        CHAT.update(agent=_build_chat_agent(), turns=[], pending={})
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # memory inspection and results
 # ---------------------------------------------------------------------------
 def _store(name: str):
@@ -306,6 +427,8 @@ def _store(name: str):
         return COMPARE[name].store
     if name in ASSISTANTS:
         return ASSISTANTS[name].store
+    if name == "chat":
+        return CHAT["agent"].store
     return None
 
 

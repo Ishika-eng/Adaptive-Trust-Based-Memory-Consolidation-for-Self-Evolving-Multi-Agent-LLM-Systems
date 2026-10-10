@@ -16,6 +16,7 @@ class Verdict:
     correct: bool
     stage: str    # "ok" | "wrong_answer" | "syntax_error" | "runtime_error" | "timeout" | "no_answer"
     detail: str = ""   # short, human-readable failure detail (fed into reflections)
+    verified: bool = True   # False = no ground truth (a user task with no tests): memory must not learn from it yet
 
 
 def memory_block(memories: list[str]) -> tuple[str, str]:

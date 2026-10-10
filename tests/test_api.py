@@ -137,3 +137,67 @@ def test_eval_endpoint_lists_and_reports(api, tmp_path, monkeypatch):
     assert api.get("/api/eval").json() == [{"experiment": "demo", "domain": "math"}]
     rep = api.get("/api/eval?experiment=demo&domain=math").json()
     assert rep["conditions"][0]["pass_rate"]["mean"] == 0.5
+
+
+def _chat_script(api, code="def add(a, b):\n    return a + b"):
+    base = api.script
+
+    def script(prompt):
+        if "careful Python coding assistant" in prompt:
+            return f"Add them.\n```python\n{code}\n```"
+        return base(prompt)
+    script.mode = ""
+    return script
+
+
+def test_chat_with_tests_verifies_and_learns_immediately(api, fake_llm):
+    fake_llm(_chat_script(api))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"}).json()
+    assert t["status"] == "passed" and t["code"].startswith("def add") and t["explanation"] == "Add them."
+    assert api.get("/api/chat/summary").json() == {**api.get("/api/chat/summary").json(), "asked": 1, "solved": 1,
+                                                  "memory_size": 1, "awaiting_feedback": 0}
+
+
+def test_chat_failing_tests_are_a_verified_failure_with_a_lesson(api, fake_llm):
+    fake_llm(_chat_script(api, "def add(a, b):\n    return a - b"))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"}).json()
+    assert t["status"] == "failed" and t["stage"] == "wrong_answer" and t["lesson"]
+
+
+def test_chat_without_tests_waits_for_the_users_verdict_before_learning(api, fake_llm):
+    fake_llm(_chat_script(api))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    assert t["status"] == "unverified"
+    assert api.get("/api/chat/summary").json()["memory_size"] == 0            # nothing learned yet
+    assert api.get("/api/chat/summary").json()["awaiting_feedback"] == 1
+    done = api.post("/api/chat/feedback", json={"id": t["id"], "correct": True}).json()
+    assert done["feedback"]["correct"] is True
+    assert api.get("/api/chat/summary").json()["memory_size"] == 1            # now it learned
+    assert api.post("/api/chat/feedback", json={"id": t["id"], "correct": True}).status_code == 409
+
+
+def test_chat_user_rejection_stores_a_failure_note_with_a_lesson(api, fake_llm):
+    fake_llm(_chat_script(api))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    done = api.post("/api/chat/feedback", json={"id": t["id"], "correct": False, "comment": "off by one"}).json()
+    assert done["lesson"]
+    notes = api.get("/api/memory/chat").json()
+    assert len(notes) == 1 and "INCORRECT" in notes[0]["text"] and "off by one" in notes[0]["text"]
+
+
+def test_chat_rejects_empty_and_oversized_input_and_resets(api, fake_llm):
+    fake_llm(_chat_script(api))
+    assert api.post("/api/chat/ask", json={"prompt": "   "}).status_code == 400
+    assert api.post("/api/chat/ask", json={"prompt": "x" * 5000}).status_code == 400
+    api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"})
+    api.post("/api/chat/reset")
+    assert api.get("/api/chat/history").json() == []
+    assert api.get("/api/chat/summary").json()["memory_size"] == 0
+
+
+def test_unexpected_backend_errors_come_back_as_readable_json_not_a_crash(api, fake_llm):
+    def boom(prompt):
+        raise RuntimeError("Gemini call failed after 4 retries: API key not valid")
+    fake_llm(boom)
+    r = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"})
+    assert r.status_code == 502 and "API key not valid" in r.json()["detail"]

@@ -7,6 +7,7 @@ import hashlib
 import os
 import re
 import sqlite3
+import threading
 import time
 
 from google import genai
@@ -27,6 +28,7 @@ USAGE = {"calls": 0, "prompt_tokens": 0, "output_tokens": 0, "api_calls": 0, "ca
 
 CACHE_PATH = None      # set by configure(); None = caching off
 _cache_db = None
+_cache_lock = threading.Lock()   # the connection is shared by server worker threads
 
 
 class QuotaExhausted(RuntimeError):
@@ -61,7 +63,7 @@ def _cache():
     global _cache_db
     if _cache_db is None:
         CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _cache_db = sqlite3.connect(CACHE_PATH)
+        _cache_db = sqlite3.connect(CACHE_PATH, check_same_thread=False)
         _cache_db.execute("CREATE TABLE IF NOT EXISTS r (k TEXT PRIMARY KEY, text TEXT, tin INT, tout INT)")
     return _cache_db
 
@@ -82,7 +84,8 @@ def complete(prompt: str) -> str:
     Raises QuotaExhausted immediately on a daily-quota error instead of retrying."""
     global _last_call
     if CACHE_PATH is not None:
-        hit = _cache().execute("SELECT text, tin, tout FROM r WHERE k=?", (_cache_key(prompt),)).fetchone()
+        with _cache_lock:
+            hit = _cache().execute("SELECT text, tin, tout FROM r WHERE k=?", (_cache_key(prompt),)).fetchone()
         if hit:
             USAGE["calls"] += 1
             USAGE["cache_hits"] += 1
@@ -108,9 +111,10 @@ def complete(prompt: str) -> str:
             USAGE["output_tokens"] += tout
             text = resp.text or ""
             if CACHE_PATH is not None:
-                db = _cache()
-                db.execute("INSERT OR REPLACE INTO r VALUES (?,?,?,?)", (_cache_key(prompt), text, tin, tout))
-                db.commit()
+                with _cache_lock:
+                    db = _cache()
+                    db.execute("INSERT OR REPLACE INTO r VALUES (?,?,?,?)", (_cache_key(prompt), text, tin, tout))
+                    db.commit()
             return text
         except Exception as e:
             if "PerDay" in str(e):

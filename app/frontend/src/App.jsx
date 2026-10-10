@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import './App.css'
 import Assistant from './pages/Assistant'
-import Demo from './pages/Demo'
+import BenchmarkLab from './pages/BenchmarkLab'
 import MemoryExplorer from './pages/MemoryExplorer'
 import Results from './pages/Results'
 import Architecture from './pages/Architecture'
 
 const PAGES = {
   assistant: { label: 'Assistant', component: Assistant },
-  demo: { label: 'Demo', component: Demo },
-  memory: { label: 'Memory Explorer', component: MemoryExplorer },
+  lab: { label: 'Benchmark lab', component: BenchmarkLab },
+  memory: { label: 'Memory', component: MemoryExplorer },
   results: { label: 'Results', component: Results },
   architecture: { label: 'Architecture', component: Architecture },
 }
@@ -21,12 +21,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>ATMC <span className="muted">— Adaptive Trust-based Memory Consolidation</span></h1>
-        <p className="lede">
-          AI agents that remember their past mistakes can also remember them <em>wrong</em> — and then
-          trust that wrong memory forever. ATMC scores every memory by how trustworthy, relevant, and
-          fresh it is, so bad memories get filtered out and good ones don't get lost in the noise.
-        </p>
+        <h1>ATMC <span className="muted">— a coding assistant that remembers what works</span></h1>
       </header>
 
       <nav className="app-nav">
@@ -46,8 +41,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer muted">
-        This is a live view into the actual backend (pilot/memory.py + pilot/stores.py) — the same code
-        that produced the experiment results above, not a mockup.
+        The memory behind it is ATMC (Adaptive Trust-based Memory Consolidation): notes the assistant can't trust are filtered out.
       </footer>
     </div>
   )

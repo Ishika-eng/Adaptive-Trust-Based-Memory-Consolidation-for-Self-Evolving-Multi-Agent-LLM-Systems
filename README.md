@@ -80,6 +80,10 @@ config it ran with, so any run can be reproduced from its own output. Invalid va
 (`BAAI/bge-small-en-v1.5` via `fastembed` -- no API quota, no PyTorch). The original TF-IDF
 backend is kept (`embedding.backend: tfidf`) so the two can be compared directly.
 
+**Run the assistant (chat UI):** ask your own Python questions at http://localhost:5173. Add `assert` tests and the
+sandbox checks the answer; without tests the answer is marked *unverified* and the assistant learns from it only after you
+click "It worked" / "It didn't". Python only. Needs `GEMINI_API_KEY` in `.env`.
+
 **Run the demo app:**
 ```bash
 # backend (from repo root)
@@ -1033,7 +1037,7 @@ What actually exists in this repository right now:
 │
 └── app/                          # full-stack demo
     ├── backend/main.py, db.py    # FastAPI (assistant, memory, eval endpoints); SQLite persistence
-    └── frontend/                 # React (Vite): Assistant, Demo, Memory Explorer, Results, Architecture
+    └── frontend/                 # React (Vite): chat Assistant, Benchmark lab, Memory, Results, Architecture
 ```
 
 ## 14.2 Target Structure (by end of Month 3)

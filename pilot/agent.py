@@ -34,6 +34,8 @@ class StepResult:
     tokens_in: int
     tokens_out: int
     memory_size: int
+    q_emb: object = None
+    learned: bool = False
 
     @property
     def correct(self) -> bool:
@@ -79,8 +81,8 @@ class Agent:
             raise ValueError("no curriculum configured and no task given")
         return self.curriculum.choose(self.pool, self.done_ids, self.store, self.embedder, self.rng)
 
-    def step(self, task: dict | None = None) -> StepResult:
-        task = task or self.next_task()
+    def attempt(self, task: dict) -> StepResult:
+        """Plan, retrieve, solve and check -- without touching memory."""
         before = llm.usage_snapshot()
 
         plan = self.planner.plan(task) if self.planner else None
@@ -93,31 +95,56 @@ class Agent:
         raw = llm.complete(self.domain.build_prompt(task, [m.text for m in retrieved], plan))
         answer = self.domain.extract_answer(raw, task)
         verdict = self.domain.check(task, answer)
-
         used_mask = llm.extract_used_mask(raw, len(retrieved))
-        self.store.update_from_outcome(retrieved, verdict.correct, used_mask=used_mask)
-
-        lesson = None
-        if self.reflector and not verdict.correct:
-            lesson = self.reflector.lesson(task, answer, verdict)
-        note = self.domain.reflection(task, raw, answer, verdict)
-        if lesson:
-            note += f"\nLesson: {lesson}"
-        self.store.add(note, q_emb, verdict.correct)
 
         after = llm.usage_snapshot()
-        result = StepResult(
+        return StepResult(
             task=task, plan=plan, retrieved=retrieved, used_mask=used_mask, raw=raw, answer=answer,
-            verdict=verdict, lesson=lesson, note=note,
+            verdict=verdict, lesson=None, note="",
             n_poison_retrieved=sum(m.is_poison for m in retrieved),
             n_poison_used=sum(1 for m, u in zip(retrieved, used_mask) if u and m.is_poison),
             retrieval_ms=retrieval_ms,
             tokens_in=after["prompt_tokens"] - before["prompt_tokens"],
             tokens_out=after["output_tokens"] - before["output_tokens"],
-            memory_size=self.store.size(),
+            memory_size=self.store.size(), q_emb=q_emb,
         )
+
+    def learn(self, result: StepResult, correct: bool | None = None, feedback: str = "") -> StepResult:
+        """Update memory from an attempt: credit the notes that were used, reflect on a failure and
+        store the new note. A task with no ground truth (verdict.verified is False) needs the user's
+        own verdict -- `correct` -- before anything is learned from it."""
+        if result.learned:
+            return result
+        verdict = result.verdict
+        if not verdict.verified:
+            if correct is None:
+                raise ValueError("this attempt is unverified: learning needs the user's verdict")
+            verdict = Verdict(correct, "ok" if correct else "user_rejected", feedback.strip()[:300])
+            result.verdict = verdict
+        task, answer = result.task, result.answer
+        self.store.update_from_outcome(result.retrieved, verdict.correct, used_mask=result.used_mask)
+
+        lesson = None
+        if self.reflector and not verdict.correct:
+            before = llm.usage_snapshot()
+            lesson = self.reflector.lesson(task, answer, verdict)
+            after = llm.usage_snapshot()
+            result.tokens_in += after["prompt_tokens"] - before["prompt_tokens"]
+            result.tokens_out += after["output_tokens"] - before["output_tokens"]
+        note = self.domain.reflection(task, result.raw, answer, verdict)
+        if lesson:
+            note += f"\nLesson: {lesson}"
+        self.store.add(note, result.q_emb, verdict.correct)
+
+        result.lesson, result.note, result.learned = lesson, note, True
+        result.memory_size = self.store.size()
         self.history.append(result.to_log())
         return result
+
+    def step(self, task: dict | None = None) -> StepResult:
+        """One full benchmark step: attempt, then learn (the checker is ground truth)."""
+        result = self.attempt(task or self.next_task())
+        return self.learn(result) if result.verdict.verified else result
 
     def run(self, n: int, on_step=None) -> list[StepResult]:
         results = []

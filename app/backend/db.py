@@ -54,6 +54,7 @@ def _connect() -> sqlite3.Connection:
         "CREATE TABLE IF NOT EXISTS history ("
         "domain TEXT NOT NULL, idx INTEGER NOT NULL, entry TEXT NOT NULL, PRIMARY KEY (domain, idx))"
     )
+    conn.execute("CREATE TABLE IF NOT EXISTS chat (id TEXT PRIMARY KEY, idx INTEGER NOT NULL, entry TEXT NOT NULL)")
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     return conn
 
@@ -194,5 +195,30 @@ def load_history(domain: str) -> list[dict]:
 def clear_history(domain: str) -> None:
     conn = _connect()
     conn.execute("DELETE FROM history WHERE domain = ?", (domain,))
+    conn.commit()
+    conn.close()
+
+
+# ---- chat assistant: one row per question/answer exchange ----------------
+def save_turn(turn: dict) -> None:
+    conn = _connect()
+    idx = conn.execute("SELECT idx FROM chat WHERE id = ?", (turn["id"],)).fetchone()
+    if idx is None:
+        idx = (conn.execute("SELECT COALESCE(MAX(idx), -1) FROM chat").fetchone()[0] + 1,)
+    conn.execute("INSERT OR REPLACE INTO chat (id, idx, entry) VALUES (?, ?, ?)", (turn["id"], idx[0], json.dumps(turn)))
+    conn.commit()
+    conn.close()
+
+
+def load_turns() -> list[dict]:
+    conn = _connect()
+    rows = conn.execute("SELECT entry FROM chat ORDER BY idx").fetchall()
+    conn.close()
+    return [json.loads(r[0]) for r in rows]
+
+
+def clear_turns() -> None:
+    conn = _connect()
+    conn.execute("DELETE FROM chat")
     conn.commit()
     conn.close()
