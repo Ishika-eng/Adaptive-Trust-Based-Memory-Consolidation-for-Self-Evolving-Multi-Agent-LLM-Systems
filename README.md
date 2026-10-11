@@ -95,7 +95,11 @@ backend is kept (`embedding.backend: tfidf`) so the two can be compared directly
 
 **Run the assistant (chat UI):** ask your own Python questions at http://localhost:5173. Add `assert` tests and the
 sandbox checks the answer; without tests the answer is marked *unverified* and the assistant learns from it only after you
-click "It worked" / "It didn't". Python only. Needs `GEMINI_API_KEY` in `.env`.
+click "It worked" / "It didn't". Messages in a conversation are follow-ups (the last 3 exchanges, including whether each
+passed or was rejected, go into the prompt); "+ New chat" starts a clean context but keeps memory. The sidebar shows the
+assistant's own **next practice task**, chosen by the weakness curriculum (a benchmark task close to something it got wrong,
+or a new one while it has no mistakes) with the reason; "Let me practise it" solves it against its real tests, so memory
+learns verified results. Python only. Needs `GEMINI_API_KEY` in `.env`.
 
 **Run the demo app:**
 ```bash
