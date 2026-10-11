@@ -76,10 +76,18 @@ function Turn({ turn, onFeedback, busy }) {
   return (
     <>
       <div className="msg msg--user">
-        <div className="bubble bubble--user">
-          <p>{turn.prompt}</p>
-          {turn.tests && <pre className="bubble-tests">{turn.tests}</pre>}
-        </div>
+        {turn.practice ? (
+          <div className="bubble bubble--practice">
+            <strong>🎯 Practice task I chose myself</strong>
+            <p>{turn.prompt.length > 320 ? turn.prompt.slice(0, 320) + '…' : turn.prompt}</p>
+          </div>
+        ) : (
+          <div className="bubble bubble--user">
+            {turn.followup && <span className="followup-tag">↪ follow-up</span>}
+            <p>{turn.prompt}</p>
+            {turn.tests && <pre className="bubble-tests">{turn.tests}</pre>}
+          </div>
+        )}
       </div>
       <div className="msg">
         <div className="bubble bubble--bot">
@@ -103,7 +111,27 @@ function Turn({ turn, onFeedback, busy }) {
   )
 }
 
-function Sidebar({ summary, notes, onReset, busy }) {
+function NextTask({ suggestion, onPractise, onAnother, busy }) {
+  if (!suggestion) return null
+  if (!suggestion.id) return <p className="muted">I've worked through every practice task I know.</p>
+  return (
+    <div className="next-task">
+      <h4>My next practice task</h4>
+      <p className="muted">{suggestion.reason}</p>
+      <details>
+        <summary>See the task</summary>
+        <pre className="how-pre">{suggestion.question}</pre>
+      </details>
+      <div className="next-task-actions">
+        <button className="btn btn--primary" disabled={busy} onClick={() => onPractise(suggestion.id)}>Let me practise it</button>
+        <button className="btn btn--ghost" disabled={busy} onClick={onAnother}>Another</button>
+      </div>
+      <p className="muted">I solve it against its real tests, so what I learn is verified.</p>
+    </div>
+  )
+}
+
+function Sidebar({ summary, notes, onReset, busy, suggestion, onPractise, onAnother }) {
   const top = [...notes].sort((a, b) => b.trust - a.trust).slice(0, 8)
   return (
     <aside className="side">
@@ -115,6 +143,8 @@ function Sidebar({ summary, notes, onReset, busy }) {
           <div><span>{summary.memory_size}</span>memories</div>
         </div>
       )}
+      {summary?.practised > 0 && <p className="muted">Practised {summary.practised} task(s) on my own, passed {summary.practised_passed}.</p>}
+      <NextTask suggestion={suggestion} onPractise={onPractise} onAnother={onAnother} busy={busy} />
       {summary?.awaiting_feedback > 0 && <p className="muted">{summary.awaiting_feedback} answer(s) waiting for your verdict.</p>}
       {top.length === 0 ? (
         <p className="muted">Nothing yet. Every solved or failed question becomes a memory the assistant can reuse.</p>
@@ -153,13 +183,15 @@ export default function Assistant() {
   const [showTests, setShowTests] = useState(false)
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState(null)
+  const [suggestion, setSuggestion] = useState(null)
   const [error, setError] = useState(null)
   const endRef = useRef(null)
 
   const refresh = async () => {
     try {
-      const [h, s, n] = await Promise.all([getJSON('/api/chat/history'), getJSON('/api/chat/summary'), getJSON('/api/memory/chat')])
-      setTurns(h); setSummary(s); setNotes(n); setError(null)
+      const [h, s, n, g] = await Promise.all([getJSON('/api/chat/history'), getJSON('/api/chat/summary'),
+        getJSON('/api/memory/chat'), getJSON('/api/chat/suggest')])
+      setTurns(h); setSummary(s); setNotes(n); setSuggestion(g); setError(null)
     } catch (e) { setError(`Could not reach the backend: ${e.message}`) }
   }
   useEffect(() => { refresh() }, [])
@@ -182,12 +214,24 @@ export default function Assistant() {
     })
   }
   const feedback = (id, correct, comment) => run(async () => { await postJSON('/api/chat/feedback', { id, correct, comment }); await refresh() })
+  const practise = (id) => run(async () => {
+    setPending({ practice: true })
+    try { await postJSON('/api/chat/practise', { task_id: id }) } finally { setPending(null) }
+    await refresh()
+  })
+  const another = () => run(async () => setSuggestion(await getJSON('/api/chat/suggest?refresh=true')))
+  const newChat = () => run(async () => { await postJSON('/api/chat/new'); await refresh() })
   const reset = () => run(async () => { await postJSON('/api/chat/reset'); await refresh() })
+  const inConversation = !!summary && turns.some(t => t.conversation === summary.conversation && !t.practice)
   const onKey = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') ask() }
 
   return (
     <div className="chat-layout">
       <section className="chat">
+        <div className="chat-head">
+          <span className="muted">{inConversation ? 'I can see this conversation, so follow-ups work.' : 'Start with a question.'}</span>
+          <button className="link-btn" disabled={busy || !inConversation} onClick={newChat}>+ New chat</button>
+        </div>
         <div className="thread">
           {turns.length === 0 && !pending && (
             <div className="empty">
@@ -201,8 +245,16 @@ export default function Assistant() {
               </div>
             </div>
           )}
-          {turns.map(t => <Turn key={t.id} turn={t} onFeedback={feedback} busy={busy} />)}
-          {pending && (
+          {turns.map((t, i) => (
+            <div key={t.id} className="turn-group">
+              {i > 0 && t.conversation !== turns[i - 1].conversation && <div className="divider"><span>New conversation</span></div>}
+              <Turn turn={t} onFeedback={feedback} busy={busy} />
+            </div>
+          ))}
+          {pending && pending.practice && (
+            <div className="msg"><div className="bubble bubble--bot thinking">Practising a task I chose: planning, recalling, writing code, running its tests…</div></div>
+          )}
+          {pending && !pending.practice && (
             <>
               <div className="msg msg--user"><div className="bubble bubble--user"><p>{pending.prompt}</p></div></div>
               <div className="msg"><div className="bubble bubble--bot thinking">Planning, recalling what I know, writing code{pending.tests ? ', running your tests' : ''}…</div></div>
@@ -216,7 +268,7 @@ export default function Assistant() {
         <div className="composer">
           <textarea
             value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={onKey} rows={3} disabled={busy}
-            placeholder="Describe what you want, e.g. “Write a function that merges overlapping intervals”"
+            placeholder={inConversation ? 'Ask a follow-up, e.g. “now make it handle empty input”' : 'Describe what you want, e.g. “Write a function that merges overlapping intervals”'}
           />
           {showTests && (
             <textarea className="composer-tests" value={tests} onChange={e => setTests(e.target.value)} onKeyDown={onKey}
@@ -231,7 +283,7 @@ export default function Assistant() {
           </div>
         </div>
       </section>
-      <Sidebar summary={summary} notes={notes} onReset={reset} busy={busy} />
+      <Sidebar summary={summary} notes={notes} onReset={reset} busy={busy} suggestion={suggestion} onPractise={practise} onAnother={another} />
     </div>
   )
 }
