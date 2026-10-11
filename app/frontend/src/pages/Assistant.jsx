@@ -4,18 +4,21 @@ import { Highlight } from '../lib/highlight'
 import Logo from '../lib/Logo'
 import { Markdown } from '../lib/markdown'
 
+const STRATEGY_NAMES = { plan_first: 'plan first', direct: 'direct', revise: 'write, then review' }
 const EXAMPLES = [
   { title: 'Merge intervals', sub: 'Combine overlapping ranges into the fewest intervals', prompt: 'Write a function merge(intervals) that merges overlapping intervals and returns them sorted' },
   { title: 'Balanced brackets', sub: 'Check that ()[]{} in a string are properly nested', prompt: 'Write a function is_balanced(s) that checks whether the brackets in a string are balanced' },
   { title: 'Fast Fibonacci', sub: 'Return the n-th Fibonacci number without recursion blowup', prompt: 'Write a function fib(n) that returns the n-th Fibonacci number efficiently' },
 ]
 const TEST_PLACEHOLDER = 'assert merge([[1, 3], [2, 6], [8, 10]]) == [[1, 6], [8, 10]]'
-const WORKING = ['Planning the approach…', 'Recalling what worked before…', 'Writing the code…', 'Running checks…']
+const WORKING = ['Planning the approach…', 'Recalling what worked before…', 'Writing the code…', 'Writing tests and alternative solutions…', 'Cross-checking in the sandbox…']
 
 const STATUS = {
   passed: { label: 'Tests passed', cls: 'pill--good' },
   failed: { label: 'Tests failed', cls: 'pill--bad' },
   unverified: { label: 'Not verified', cls: 'pill--impl' },
+  auto_verified: { label: 'Auto-verified', cls: 'pill--good' },
+  disputed: { label: 'Disputed by you', cls: 'pill--bad' },
 }
 
 const Icon = ({ d, size = 16 }) => (
@@ -57,6 +60,12 @@ function Details({ turn }) {
   return (
     <details className="how">
       <summary>How I solved this</summary>
+      {turn.strategy && (
+        <p className="muted" style={{ margin: '8px 0 0' }}>
+          Approach: <strong>{STRATEGY_NAMES[turn.strategy.name]}</strong> — {turn.strategy.reason}
+          {turn.strategy.category_label && <> · type: {turn.strategy.category_label}</>}
+        </p>
+      )}
       {turn.plan && (<><h5>Plan (made without looking at memory)</h5><pre className="how-pre">{turn.plan}</pre></>)}
       <h5>What I remembered ({turn.retrieved.length})</h5>
       {turn.retrieved.length === 0 && <p className="muted">Nothing relevant yet — memory is still empty.</p>}
@@ -67,8 +76,15 @@ function Details({ turn }) {
             <span className="mem-card-hits">trust {m.trust.toFixed(2)}</span>
           </div>
           <p className="mem-card-text">{m.text.slice(0, 280)}{m.text.length > 280 ? '…' : ''}</p>
+          {m.why && (
+            <p className="why">
+              Why this note: ranked #{m.why.rank} · similarity {m.why.similarity} · trust {m.trust.toFixed(2)} ·
+              worked {m.successes}×, misled {m.failures}× before · score {m.why.score}
+            </p>
+          )}
         </div>
       ))}
+      {turn.filtered > 0 && <p className="muted">{turn.filtered} note(s) were skipped because their trust is below the threshold.</p>}
       {turn.lesson && (<><h5>Lesson I saved for next time</h5><pre className="how-pre">{turn.lesson}</pre></>)}
       <p className="muted">{turn.cost.tokens_in + turn.cost.tokens_out} tokens · memory lookup {turn.cost.retrieval_ms} ms</p>
     </details>
@@ -98,7 +114,52 @@ function Feedback({ turn, onSend, busy }) {
   )
 }
 
-function Turn({ turn, onFeedback, busy }) {
+function AutoCheckNote({ turn }) {
+  const a = turn.autocheck
+  if (!a) return null
+  if (turn.status === 'auto_verified' || turn.status === 'disputed') {
+    return (
+      <p className="run-note">
+        Checked against {a.n_reliable} generated tests that at least two independent solutions agree on
+        {a.status === 'switched' ? ' — my first answer failed some of them, so I switched to a solution that passes all' : ' — all passed'}.
+        {' '}Generated tests are weaker evidence than your own, so I count it at half strength.
+      </p>
+    )
+  }
+  const detail = a.status === 'failed'
+    ? 'No solution I wrote passed every test the solutions agreed on, so something may be wrong.'
+    : a.status === 'unavailable' ? 'There was no function to check.'
+    : a.status === 'underspecified' ? 'Your request is open to interpretation (it doesn’t say exactly what the function should do), so I can’t check it automatically. Tell me the exact behaviour, or add tests.'
+    : 'My independent solutions didn’t agree on enough tests to say anything either way.'
+  return (
+    <div className="run-note">
+      <p>Auto-check: {detail}</p>
+      {a.failing?.length > 0 && <pre className="how-pre">{a.failing.join('\n')}</pre>}
+    </div>
+  )
+}
+
+function Dispute({ turn, onDispute, busy }) {
+  const [open, setOpen] = useState(false)
+  const [comment, setComment] = useState('')
+  if (turn.status === 'disputed') return <p className="run-note">✗ You disputed this — I retired the note and saved what went wrong.</p>
+  if (turn.status !== 'auto_verified') return null
+  return (
+    <div className="feedback">
+      <span>Auto-checked, not proven. If it’s wrong, tell me and I’ll unlearn it.</span>
+      <button className="btn btn--ghost" disabled={busy} onClick={() => setOpen(o => !o)}>This is wrong</button>
+      {open && (
+        <div className="feedback-form">
+          <input type="text" value={comment} onChange={e => setComment(e.target.value)} placeholder="What’s wrong? (optional)"
+            aria-label="What is wrong" onKeyDown={e => e.key === 'Enter' && onDispute(turn.id, comment)} />
+          <button className="btn btn--primary" disabled={busy} onClick={() => onDispute(turn.id, comment)}>Send</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Turn({ turn, onFeedback, onDispute, busy }) {
   const st = STATUS[turn.status]
   return (
     <>
@@ -125,10 +186,12 @@ function Turn({ turn, onFeedback, busy }) {
           </div>
           {turn.explanation && <div className="explain"><Markdown text={turn.explanation} /></div>}
           <CodeBlock code={turn.code} />
+          <AutoCheckNote turn={turn} />
+          <Dispute turn={turn} onDispute={onDispute} busy={busy} />
           {turn.status === 'unverified' && !turn.feedback && (
             <p className="run-note">
               {turn.output ? <>It ran without errors and printed <code>{turn.output}</code>. </> : 'It ran without errors. '}
-              Nothing checks that it’s correct — add tests next time to verify it.
+              Nothing proves it’s correct — add tests next time to verify it.
             </p>
           )}
           <Feedback turn={turn} onSend={onFeedback} busy={busy} />
@@ -216,6 +279,7 @@ export default function Assistant() {
   const [prompt, setPrompt] = useState('')
   const [tests, setTests] = useState('')
   const [showTests, setShowTests] = useState(false)
+  const [autocheck, setAutocheck] = useState(true)
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState(null)
   const [error, setError] = useState(null)
@@ -249,7 +313,7 @@ export default function Assistant() {
       setPending({ prompt: text, tests: sentTests.trim() })
       setPrompt(''); setTests('')                 // clear at once; restored below if the request fails
       try {
-        await postJSON('/api/chat/ask', { prompt: text, tests: sentTests })
+        await postJSON('/api/chat/ask', { prompt: text, tests: sentTests, autocheck })
       } catch (e) {
         setPrompt(text); setTests(sentTests)
         throw e
@@ -258,6 +322,7 @@ export default function Assistant() {
     })
   }
   const feedback = (id, correct, comment) => run(async () => { await postJSON('/api/chat/feedback', { id, correct, comment }); await refresh() })
+  const dispute = (id, comment) => run(async () => { await postJSON('/api/chat/dispute', { id, comment }); await refresh() })
   const practise = (id) => run(async () => {
     setPanel(false); setPending({ practice: true })
     try { await postJSON('/api/chat/practise', { task_id: id }) } finally { setPending(null) }
@@ -310,7 +375,7 @@ export default function Assistant() {
           {turns.map((t, i) => (
             <div key={t.id} className="turn-group">
               {i > 0 && t.conversation !== turns[i - 1].conversation && <div className="divider"><span>New conversation</span></div>}
-              <Turn turn={t} onFeedback={feedback} busy={busy} />
+              <Turn turn={t} onFeedback={feedback} onDispute={dispute} busy={busy} />
             </div>
           ))}
           {pending && !pending.practice && (
@@ -335,9 +400,16 @@ export default function Assistant() {
                 rows={3} disabled={busy} aria-label="Tests (assert statements)" placeholder={TEST_PLACEHOLDER} />
             )}
             <div className="composer-bar">
-              <button className="link-btn" onClick={() => setShowTests(s => !s)}>
-                {showTests ? '− Remove tests' : '+ Add tests to verify the answer'}
-              </button>
+              <div className="composer-opts">
+                <button className="link-btn" onClick={() => setShowTests(s => !s)}>
+                  {showTests ? '− Remove tests' : '+ Add your own tests'}
+                </button>
+                {!showTests && (
+                  <label className="check" title="Writes tests and alternative solutions and cross-checks them in the sandbox. Uses more model calls.">
+                    <input type="checkbox" checked={autocheck} onChange={e => setAutocheck(e.target.checked)} /> Auto-check my answer
+                  </label>
+                )}
+              </div>
               <button className="btn btn--primary send-btn" disabled={busy || !prompt.trim()} onClick={ask} aria-label="Send">
                 <Icon d={ICONS.send} size={18} />
               </button>
