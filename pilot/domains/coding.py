@@ -79,11 +79,16 @@ class CodingDomain(Domain):
         prefix, used = memory_block(memories)
         if task.get("dataset") == "user":
             tests = f"\n\nYour code must pass these tests:\n{task['tests'][0]}" if task.get("tests") else ""
+            if task.get("context"):
+                request = (f"Earlier in this conversation:\n{task['context']}\n\n"
+                           f"The user now says (a follow-up to the above):\n{task['request']}")
+            else:
+                request = f"Request:\n{task['question']}"
             return (
                 f"{prefix}{plan_block(plan)}You are a careful Python coding assistant. First give a brief explanation "
                 f"(2-4 sentences) of your approach, then the complete working code in a single ```python code block "
                 f"(include any imports; do not add example usage or tests).{used}\n\n"
-                f"Request:\n{task['question']}{tests}"
+                f"{request}{tests}"
             )
         return (
             f"{prefix}{plan_block(plan)}Solve this Python programming task. Reply with the complete, working function "
@@ -154,11 +159,16 @@ class CodingDomain(Domain):
         return _USED_LINE.sub("", text).strip()
 
     @staticmethod
-    def user_task(question: str, tests: str = "", idx: int = 0) -> dict:
+    def user_task(question: str, tests: str = "", idx: int = 0, context: str = "", previous: str = "") -> dict:
+        """A task typed by the user. For a follow-up, `context` (the earlier exchanges) goes into the
+        prompt, while `question` also names the earlier request so retrieval and the saved memory note
+        make sense on their own ("make it faster" alone would mean nothing later)."""
         tests = tests.strip()
+        request = question.strip()
+        full = f"{previous.strip()}\nFollow-up: {request}" if context and previous else request
         return {
-            "id": f"user/{idx}", "dataset": "user", "question": question.strip(), "entry_point": None,
-            "tests": [tests] if tests else [], "setup": "", "reference": "",
+            "id": f"user/{idx}", "dataset": "user", "question": full, "request": request, "context": context,
+            "entry_point": None, "tests": [tests] if tests else [], "setup": "", "reference": "",
         }
 
     # ---- memory notes ------------------------------------------------
