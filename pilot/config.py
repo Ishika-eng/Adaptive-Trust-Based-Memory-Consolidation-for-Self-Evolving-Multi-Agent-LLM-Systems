@@ -65,6 +65,9 @@ def _validate(d: dict) -> None:
         raise ValueError("agent.curriculum_explore must be in [0, 1]")
     if d["retrieval"]["top_k"] < 1:
         raise ValueError("retrieval.top_k must be >= 1")
+    av = d.get("autoverify", {})
+    if av and (av["candidates"] < 2 or av["tests"] < 1 or not 0.0 < av["evidence_weight"] <= 1.0):
+        raise ValueError("autoverify needs candidates >= 2, tests >= 1 and 0 < evidence_weight <= 1")
     if not 0.0 <= d["retrieval"].get("min_similarity", 0.0) < 1.0:
         raise ValueError("retrieval.min_similarity must be in [0, 1)")
 
