@@ -96,6 +96,16 @@ class CodingDomain(Domain):
             f"Task:\n{task['question']}"
         )
 
+    def revise_prompt(self, task, draft):
+        request = task.get("request") or task["question"]
+        return (
+            "Below are a coding request and a draft solution. Review the draft carefully for bugs, missed edge cases "
+            "(empty input, single elements, duplicates, boundaries) and anything the request asks for that it misses. "
+            "Then reply with a brief explanation (2-4 sentences) followed by the final, complete, corrected code in a "
+            "single ```python code block (unchanged if it was already correct; do not add example usage or tests).\n\n"
+            f"Request:\n{request}\n\nDraft solution:\n```python\n{draft}\n```"
+        )
+
     def extract_answer(self, raw, task):
         blocks = _FENCE.findall(raw)
         if blocks:
