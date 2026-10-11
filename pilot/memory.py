@@ -18,6 +18,14 @@ class MemoryItem:
     created_at_step: int = 0  # task-step index at creation (not wall-clock: see decay note)
     correct: bool = None  # ground-truth verified outcome at creation time
     is_poison: bool = False  # synthetic-contamination marker, used only by the poison pilot
+    # evidence and management metadata (what the Memory page shows)
+    uid: str = ""            # stable id, assigned by the store
+    source: str = "tests"    # who vouched for the outcome: tests | user | generated | planted | compressed | imported
+    successes: int = 0       # times it was relied on in an answer that was verified correct
+    failures: int = 0        # ... and in one that turned out wrong
+    last_used_step: int | None = None
+    version: int = 1         # bumped when notes are merged into a summary
+    pinned: bool = False     # protected from forgetting and merging (the user vouches for keeping it)
 
 
 # ---- Trust update (README 2.1) ----
