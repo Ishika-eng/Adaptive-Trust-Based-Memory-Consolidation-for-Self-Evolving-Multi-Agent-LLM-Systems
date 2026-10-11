@@ -4,6 +4,7 @@ import { getJSON } from './api'
 import Logo from './lib/Logo'
 import Assistant from './pages/Assistant'
 import BenchmarkLab from './pages/BenchmarkLab'
+import Evolution from './pages/Evolution'
 import MemoryExplorer from './pages/MemoryExplorer'
 import Results from './pages/Results'
 import Architecture from './pages/Architecture'
@@ -11,6 +12,7 @@ import Architecture from './pages/Architecture'
 const PAGES = {
   assistant: { label: 'Assistant', component: Assistant },
   memory: { label: 'Memory', component: MemoryExplorer },
+  evolution: { label: 'Evolution', component: Evolution },
   results: { label: 'Results', component: Results },
   lab: { label: 'Benchmark lab', component: BenchmarkLab },
   architecture: { label: 'Architecture', component: Architecture },
