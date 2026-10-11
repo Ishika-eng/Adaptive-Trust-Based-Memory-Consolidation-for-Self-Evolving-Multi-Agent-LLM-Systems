@@ -33,6 +33,9 @@ import llm  # noqa: E402
 import report  # noqa: E402
 import sandbox  # noqa: E402
 from agent import Agent, build_agent  # noqa: E402
+from autoverify import AutoVerifier  # noqa: E402
+from domains.base import Verdict  # noqa: E402
+from strategy import BASELINE, STRATEGIES, StrategyBook, label as category_label  # noqa: E402
 from config import Config, load_config  # noqa: E402
 from domains import get_domain  # noqa: E402
 from embeddings import make_embedder  # noqa: E402
@@ -80,9 +83,13 @@ STATE = {"poisoned": any(m.is_poison for a in COMPARE.values() for m in a.store.
 
 
 def _retrieved_json(result) -> list[dict]:
+    explain = list(getattr(result, "explain", []) or [])
     return [
-        {"text": m.text, "trust": round(m.trust, 3), "hits": m.hits, "is_poison": m.is_poison, "used": u}
-        for m, u in zip(result.retrieved, result.used_mask)
+        {"text": m.text, "trust": round(m.trust, 3), "hits": m.hits, "is_poison": m.is_poison, "used": u,
+         "uid": getattr(m, "uid", ""), "source": getattr(m, "source", "tests"),
+         "successes": getattr(m, "successes", 0), "failures": getattr(m, "failures", 0),
+         "why": explain[i] if i < len(explain) else None}
+        for i, (m, u) in enumerate(zip(result.retrieved, result.used_mask))
     ]
 
 
@@ -325,11 +332,21 @@ def _build_chat_agent() -> Agent:
 
 def _initial_chat() -> dict:
     turns = db.load_turns()
-    return {"agent": _build_chat_agent(), "turns": turns, "pending": {}, "suggestion": None,
+    return {"agent": _build_chat_agent(), "turns": turns, "pending": {}, "learned": {}, "suggestion": None,
             "conv": max([t.get("conversation", 1) for t in turns], default=1)}
 
 
+VERIFIER = AutoVerifier(DOMAINS["code"], CFG)
+_SC = CFG.to_dict().get("strategy", {"enabled": False})
+BOOK = StrategyBook(EMBEDDER, min_trials=_SC.get("min_trials", 5), explore=_SC.get("explore", 0.1),
+                    rng=__import__("random").Random(CFG.app.sample_seed))
+BOOK.events = db.load_events()
 CHAT = _initial_chat()
+CHAT["learned"] = {}
+
+
+def _save_book():
+    db.save_events(BOOK.events)
 MAX_PROMPT_CHARS = 4000
 CONTEXT_TURNS = 3
 
@@ -337,6 +354,12 @@ CONTEXT_TURNS = 3
 class AskRequest(BaseModel):
     prompt: str
     tests: str = ""
+    autocheck: bool = True     # with no tests: generate tests and alternative solutions to check the answer
+
+
+class DisputeRequest(BaseModel):
+    id: str
+    comment: str = ""
 
 
 class FeedbackRequest(BaseModel):
@@ -372,11 +395,15 @@ def _conversation_context() -> tuple[str, str]:
     return "\n\n".join(parts), prev[-1]["prompt"]
 
 
-def _turn(result, turn_id: str, prompt: str, tests: str = "", practice: bool = False) -> dict:
+def _turn(result, turn_id: str, prompt: str, tests: str = "", practice: bool = False, strategy: dict | None = None) -> dict:
     v, domain = result.verdict, DOMAINS["code"]
     status = "unverified" if not v.verified else ("passed" if v.correct else "failed")
+    if v.verified and v.evidence == "generated":
+        status = "auto_verified"
     return {
         "id": turn_id, "conversation": CHAT["conv"], "practice": practice,
+        "autocheck": result.autocheck.to_json() if result.autocheck else None,
+        "strategy": strategy, "filtered": getattr(result, "filtered", 0),
         "prompt": prompt.strip(), "tests": tests.strip(),
         "explanation": domain.explanation(result.raw), "code": result.answer or "",
         "plan": result.plan, "retrieved": _retrieved_json(result),
@@ -393,6 +420,24 @@ def _save_chat():
     db.save_history("chat", CHAT["agent"].history)
 
 
+def _pick_strategy(ref: str, text: str, mode: str) -> dict | None:
+    """Choose how to solve this task and log the attempt (its outcome is filled in once it is known)."""
+    if not _SC.get("enabled"):
+        return None
+    category = BOOK.classify(text)
+    name, why = BOOK.choose(category, mode)
+    BOOK.start(ref, category, name, mode)
+    _save_book()
+    return {"name": name, "description": STRATEGIES[name], "category": category,
+            "category_label": category_label(category), "reason": why, "mode": mode}
+
+
+def _resolve_strategy(ref: str, success: bool) -> None:
+    if _SC.get("enabled"):
+        BOOK.resolve(ref, success)
+        _save_book()
+
+
 @app.post("/api/chat/ask")
 def chat_ask(req: AskRequest):
     prompt = req.prompt.strip()
@@ -406,13 +451,27 @@ def chat_ask(req: AskRequest):
         context, previous = _conversation_context()
         task = DOMAINS["code"].user_task(prompt, req.tests, idx=len(CHAT["turns"]) + 1,
                                          context=context, previous=previous)
-        result = _quota_guard(lambda: agent.attempt(task))
+        strategy = _pick_strategy(turn_id, task["question"], "serve")
+        result = _quota_guard(lambda: agent.attempt(task, strategy["name"] if strategy else None))
+        if result.verdict.stage == "unverified" and req.autocheck and CFG.autoverify.enabled:
+            before = llm.usage_snapshot()
+            check = _quota_guard(lambda: VERIFIER.run(task, result.answer))
+            after = llm.usage_snapshot()
+            result.tokens_in += after["prompt_tokens"] - before["prompt_tokens"]
+            result.tokens_out += after["output_tokens"] - before["output_tokens"]
+            result.autocheck = check
+            if check.status in ("verified", "switched"):
+                result.answer = check.answer
+                result.verdict = Verdict(True, "ok", "", evidence="generated")
         if result.verdict.verified:
             _quota_guard(lambda: agent.learn(result))
+            if result.verdict.evidence == "generated":
+                CHAT["learned"][turn_id] = result            # kept so the user can dispute it later
+            _resolve_strategy(turn_id, result.verdict.correct)
             _save_chat()
         else:
             CHAT["pending"][turn_id] = result
-        turn = _turn(result, turn_id, prompt, req.tests)
+        turn = _turn(result, turn_id, prompt, req.tests, strategy=strategy)
         turn["followup"] = bool(context)
         CHAT["turns"].append(turn)
         db.save_turn(turn)
@@ -425,6 +484,34 @@ def chat_new():
     with LOCK:
         CHAT["conv"] += 1
     return {"conversation": CHAT["conv"]}
+
+
+@app.post("/api/chat/dispute")
+def chat_dispute(req: DisputeRequest):
+    """The user says an auto-verified answer is actually wrong. Generated tests are weaker evidence than real
+    ones, so the user's word overrides them: the notes it relied on are penalised and its own note is retired."""
+    with LOCK:
+        turn = next((t for t in CHAT["turns"] if t["id"] == req.id), None)
+        if turn is None:
+            raise HTTPException(404, "unknown message")
+        if turn["status"] != "auto_verified":
+            raise HTTPException(409, "only auto-verified answers can be disputed")
+        result = CHAT["learned"].pop(req.id, None)
+        if result is None:
+            raise HTTPException(410, "this answer is from before the server restarted and can no longer be disputed")
+        agent = CHAT["agent"]
+        agent.store.update_from_outcome(result.retrieved, False, used_mask=result.used_mask)
+        for m in agent.store.items:
+            if m.text == result.note:
+                m.correct, m.trust = False, 0.0                 # retired: below the verification gate
+        verdict = Verdict(False, "user_rejected", req.comment.strip()[:300])
+        agent.store.add(agent.domain.reflection(result.task, result.raw, result.answer, verdict), result.q_emb, False)
+        turn.update(status="disputed", feedback={"correct": False, "comment": req.comment.strip()},
+                    memory_size=agent.store.size())
+        _resolve_strategy(req.id, False)
+        _save_chat()
+        db.save_turn(turn)
+    return turn
 
 
 @app.post("/api/chat/feedback")
@@ -442,6 +529,7 @@ def chat_feedback(req: FeedbackRequest):
         _quota_guard(lambda: CHAT["agent"].learn(result, correct=req.correct, feedback=req.comment))
         turn.update(feedback={"correct": req.correct, "comment": req.comment.strip()},
                     lesson=result.lesson, memory_size=result.memory_size)
+        _resolve_strategy(req.id, req.correct)
         _save_chat()
         db.save_turn(turn)
     return turn
@@ -482,15 +570,28 @@ def chat_practise(req: PractiseRequest):
         task = next((t for t in agent.pool if t["id"] == req.task_id), None)
         if task is None or task["id"] in agent.done_ids:
             raise HTTPException(404, "that practice task is not available")
-        result = _quota_guard(lambda: agent.attempt(task))
+        turn_id = f"t{len(CHAT['turns']) + 1}"
+        strategy = _pick_strategy(turn_id, task["question"], "practise")
+        result = _quota_guard(lambda: agent.attempt(task, strategy["name"] if strategy else None))
         _quota_guard(lambda: agent.learn(result))
+        _resolve_strategy(turn_id, result.verdict.correct)
         _save_chat()
-        turn = _turn(result, f"t{len(CHAT['turns']) + 1}", task["question"], practice=True)
+        turn = _turn(result, turn_id, task["question"], practice=True, strategy=strategy)
         turn["followup"] = False
         CHAT["turns"].append(turn)
         db.save_turn(turn)
         CHAT["suggestion"] = None
     return turn
+
+
+@app.get("/api/chat/strategies")
+def chat_strategies():
+    """The strategy scoreboard: evidence per problem type, who is champion, and the latest attempts."""
+    prompts = {t["id"]: t["prompt"] for t in CHAT["turns"]}
+    recent = [{"ref": e["ref"], "category": category_label(e["category"]), "strategy": e["strategy"], "mode": e["mode"],
+               "success": e["success"], "prompt": prompts.get(e["ref"], "")[:90]} for e in BOOK.events[-20:]][::-1]
+    return {"enabled": bool(_SC.get("enabled")), "baseline": BASELINE, "min_trials": BOOK.min_trials,
+            "descriptions": STRATEGIES, "categories": BOOK.table(), "events": recent, "total": len(BOOK.events)}
 
 
 @app.get("/api/chat/history")
@@ -503,7 +604,7 @@ def chat_summary():
     store = CHAT["agent"].store
     turns = [t for t in CHAT["turns"] if not t.get("practice")]
     practice = [t for t in CHAT["turns"] if t.get("practice")]
-    good = sum(t["status"] == "passed" or (t["feedback"] or {}).get("correct", False) for t in turns)
+    good = sum(t["status"] in ("passed", "auto_verified") or (t["feedback"] or {}).get("correct", False) for t in turns)
     return {
         "asked": len(turns), "solved": good,
         "practised": len(practice), "practised_passed": sum(t["status"] == "passed" for t in practice),
@@ -519,6 +620,8 @@ def chat_reset():
         db.clear_store("agent_chat")
         db.clear_history("chat")
         db.clear_turns()
+        BOOK.events = []
+        db.clear_events()
         CHAT.clear()
         CHAT.update(_initial_chat())
     return {"ok": True}
@@ -544,10 +647,88 @@ def get_memory(store_name: str):
     if store is None:
         raise HTTPException(404, f"unknown store {store_name!r}")
     return [
-        {"text": m.text[:300], "trust": round(m.trust, 3), "hits": m.hits, "is_poison": m.is_poison,
-         "correct": m.correct, "created_at_step": m.created_at_step}
+        {"uid": getattr(m, "uid", ""), "text": m.text[:1500], "trust": round(m.trust, 3), "hits": m.hits,
+         "is_poison": m.is_poison, "correct": m.correct, "created_at_step": m.created_at_step,
+         "source": getattr(m, "source", "tests"), "successes": getattr(m, "successes", 0),
+         "failures": getattr(m, "failures", 0), "last_used_step": getattr(m, "last_used_step", None),
+         "version": getattr(m, "version", 1), "pinned": getattr(m, "pinned", False),
+         "gated": store.name == "atmc" and m.trust < store.t_min}
         for m in store.items
     ]
+
+
+class PinRequest(BaseModel):
+    uid: str
+    pinned: bool = True
+
+
+class ImportedNote(BaseModel):
+    text: str
+    embedding: list[float]
+    correct: bool | None = None
+    is_poison: bool = False
+    successes: int = 0
+    failures: int = 0
+    version: int = 1
+
+
+class ImportRequest(BaseModel):
+    embedder: str
+    items: list[ImportedNote]
+
+
+MAX_IMPORT_NOTES = 2000
+
+
+@app.post("/api/memory/chat/pin")
+def memory_pin(req: PinRequest):
+    with LOCK:
+        if not CHAT["agent"].store.set_pinned(req.uid, req.pinned):
+            raise HTTPException(404, "no such note")
+        _save_chat()
+    return {"ok": True}
+
+
+@app.delete("/api/memory/chat/{uid}")
+def memory_delete(uid: str):
+    with LOCK:
+        if not CHAT["agent"].store.remove(uid):
+            raise HTTPException(404, "no such note")
+        _save_chat()
+    return {"ok": True, "memory_size": CHAT["agent"].store.size()}
+
+
+@app.get("/api/memory/chat/export")
+def memory_export():
+    """Everything needed to restore this memory elsewhere (same embedder only: vectors are not portable)."""
+    store = CHAT["agent"].store
+    return {"format": "atmc-memory/1", "embedder": EMBEDDER.name, "items": [
+        {"text": m.text, "embedding": [round(float(x), 6) for x in m.embedding], "correct": m.correct,
+         "is_poison": m.is_poison, "trust": round(m.trust, 3), "source": m.source,
+         "successes": m.successes, "failures": m.failures, "version": m.version, "pinned": m.pinned}
+        for m in store.items]}
+
+
+@app.post("/api/memory/chat/import")
+def memory_import(req: ImportRequest):
+    if req.embedder != EMBEDDER.name:
+        raise HTTPException(400, f"These notes were made with the embedder {req.embedder!r}; this server uses "
+                                 f"{EMBEDDER.name!r}, and their vectors are not compatible.")
+    if len(req.items) > MAX_IMPORT_NOTES:
+        raise HTTPException(400, f"Import at most {MAX_IMPORT_NOTES} notes at a time.")
+    dim = len(EMBEDDER.embed("dimension probe"))
+    with LOCK:
+        added = skipped = 0
+        for n in req.items:
+            if len(n.embedding) != dim or not n.text.strip() or len(n.text) > 6000:
+                raise HTTPException(400, "Malformed note in the import file.")
+            ok = CHAT["agent"].store.import_item(n.text, n.embedding, n.correct, is_poison=n.is_poison,
+                                                 successes=max(0, n.successes), failures=max(0, n.failures),
+                                                 version=max(1, n.version))
+            added += ok
+            skipped += not ok
+        _save_chat()
+    return {"added": added, "skipped_duplicates": skipped, "memory_size": CHAT["agent"].store.size()}
 
 
 @app.get("/api/eval")
