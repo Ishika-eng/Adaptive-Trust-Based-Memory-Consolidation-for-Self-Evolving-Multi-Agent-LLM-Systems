@@ -36,6 +36,9 @@ class StepResult:
     memory_size: int
     q_emb: object = None
     learned: bool = False
+    autocheck: object = None
+    explain: list = field(default_factory=list)     # why each retrieved note was chosen
+    filtered: int = 0                               # notes skipped because their trust was too low
 
     @property
     def correct(self) -> bool:
@@ -81,11 +84,16 @@ class Agent:
             raise ValueError("no curriculum configured and no task given")
         return self.curriculum.choose(self.pool, self.done_ids, self.store, self.embedder, self.rng)
 
-    def attempt(self, task: dict) -> StepResult:
-        """Plan, retrieve, solve and check -- without touching memory."""
+    def attempt(self, task: dict, strategy: str | None = None) -> StepResult:
+        """Plan, retrieve, solve and check -- without touching memory.
+
+        `strategy` (chat assistant only; benchmarks pass None and keep the configured behaviour):
+        "plan_first" plans before solving, "direct" skips planning, "revise" skips planning and has the
+        model review and correct its own first draft."""
         before = llm.usage_snapshot()
 
-        plan = self.planner.plan(task) if self.planner else None
+        use_plan = self.planner is not None and strategy in (None, "plan_first")
+        plan = self.planner.plan(task) if use_plan else None
 
         q_emb = self.embedder.embed(task["question"])
         t0 = time.perf_counter()
@@ -94,8 +102,11 @@ class Agent:
 
         raw = llm.complete(self.domain.build_prompt(task, [m.text for m in retrieved], plan))
         answer = self.domain.extract_answer(raw, task)
+        used_mask = llm.extract_used_mask(raw, len(retrieved))     # which notes the *first* draft relied on
+        if strategy == "revise" and answer:
+            raw = llm.complete(self.domain.revise_prompt(task, answer))
+            answer = self.domain.extract_answer(raw, task) or answer
         verdict = self.domain.check(task, answer)
-        used_mask = llm.extract_used_mask(raw, len(retrieved))
 
         after = llm.usage_snapshot()
         return StepResult(
@@ -107,6 +118,7 @@ class Agent:
             tokens_in=after["prompt_tokens"] - before["prompt_tokens"],
             tokens_out=after["output_tokens"] - before["output_tokens"],
             memory_size=self.store.size(), q_emb=q_emb,
+            explain=list(getattr(self.store, "last_explanations", [])), filtered=getattr(self.store, "last_filtered", 0),
         )
 
     def learn(self, result: StepResult, correct: bool | None = None, feedback: str = "") -> StepResult:
@@ -119,10 +131,11 @@ class Agent:
         if not verdict.verified:
             if correct is None:
                 raise ValueError("this attempt is unverified: learning needs the user's verdict")
-            verdict = Verdict(correct, "ok" if correct else "user_rejected", feedback.strip()[:300])
+            verdict = Verdict(correct, "ok" if correct else "user_rejected", feedback.strip()[:300], evidence="user")
             result.verdict = verdict
         task, answer = result.task, result.answer
-        self.store.update_from_outcome(result.retrieved, verdict.correct, used_mask=result.used_mask)
+        weight = self.cfg.to_dict().get("autoverify", {}).get("evidence_weight", 0.5) if verdict.evidence == "generated" else 1.0
+        self.store.update_from_outcome(result.retrieved, verdict.correct, used_mask=result.used_mask, weight=weight)
 
         lesson = None
         if self.reflector and not verdict.correct:
@@ -134,7 +147,7 @@ class Agent:
         note = self.domain.reflection(task, result.raw, answer, verdict)
         if lesson:
             note += f"\nLesson: {lesson}"
-        self.store.add(note, result.q_emb, verdict.correct)
+        self.store.add(note, result.q_emb, verdict.correct, source=verdict.evidence)
 
         result.lesson, result.note, result.learned = lesson, note, True
         result.memory_size = self.store.size()
