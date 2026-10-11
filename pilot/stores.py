@@ -35,9 +35,9 @@ class StaticMemoryStore:
         self.items: list[MemoryItem] = []
         self.min_similarity = min_similarity     # 0 = always return the top-k, however dissimilar
 
-    def add(self, text: str, embedding, correct: bool, is_poison: bool = False):
+    def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests"):
         # unconditional storage -- no verification gate
-        self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison))
+        self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison, source=source))
 
     def retrieve(self, query_embedding, k: int = 3):
         if not self.items:
@@ -49,7 +49,7 @@ class StaticMemoryStore:
             m.hits += 1
         return chosen
 
-    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
+    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None, weight: float = 1.0):
         pass  # baseline has no trust concept -- nothing to update
 
     def size(self):
@@ -64,13 +64,13 @@ class NoMemoryStore:
     def __init__(self):
         self.items: list[MemoryItem] = []
 
-    def add(self, text, embedding, correct, is_poison: bool = False):
+    def add(self, text, embedding, correct, is_poison: bool = False, source: str = "tests"):
         pass
 
     def retrieve(self, query_embedding, k: int = 3):
         return []
 
-    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
+    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None, weight: float = 1.0):
         pass
 
     def size(self):
@@ -88,10 +88,10 @@ class ReflexionStyleStore:
         self.buffer_size = buffer_size
         self.items: list[MemoryItem] = []
 
-    def add(self, text, embedding, correct, is_poison: bool = False):
+    def add(self, text, embedding, correct, is_poison: bool = False, source: str = "tests"):
         if correct and not is_poison:
             return
-        self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison))
+        self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison, source=source))
         self.items = self.items[-self.buffer_size:]
 
     def retrieve(self, query_embedding, k: int = 3):
@@ -100,7 +100,7 @@ class ReflexionStyleStore:
             m.hits += 1
         return list(reversed(chosen))
 
-    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
+    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None, weight: float = 1.0):
         pass
 
     def size(self):
@@ -151,7 +151,11 @@ class AdaptiveTrustStore:
         self.n_compressions = 0
         self.n_poison_laundered = 0
 
-    def add(self, text: str, embedding, correct: bool, is_poison: bool = False):
+    def _new_uid(self) -> str:
+        self._uid_counter = max(getattr(self, "_uid_counter", 0), max((int(m.uid[1:]) for m in self.items if m.uid[1:].isdigit()), default=0)) + 1
+        return f"m{self._uid_counter}"
+
+    def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests"):
         self._step += 1
         if self.enable_trust:
             # Hard verification gate (README Section 5): only checker-verified
@@ -162,8 +166,9 @@ class AdaptiveTrustStore:
                 return  # discarded at the gate -- never promoted
         else:
             T0 = 1.0  # trust pillar off: nothing is ever gated or down-weighted
-        self.items.append(MemoryItem(text=text, embedding=embedding, trust=T0,
-                                      correct=correct, created_at_step=self._step, is_poison=is_poison))
+        self.items.append(MemoryItem(text=text, embedding=embedding, trust=T0, correct=correct,
+                                      created_at_step=self._step, is_poison=is_poison, uid=self._new_uid(),
+                                      source="planted" if is_poison else source))
         self._n_added += 1
 
         if self.enable_forgetting and self._n_added % self.prune_every == 0:
@@ -177,7 +182,7 @@ class AdaptiveTrustStore:
             dt = max(self._step - m.created_at_step, 0)
             I = importance(1.0, m.hits)  # self-importance proxy at prune time
             F = retention_factor(m.trust, I, dt, **self.decay_kwargs)
-            if m.trust >= self.t_min and F > self.prune_min_retention:
+            if m.pinned or (m.trust >= self.t_min and F > self.prune_min_retention):
                 kept.append(m)
         self.items = kept
 
@@ -199,7 +204,7 @@ class AdaptiveTrustStore:
         if self.embed_fn is None or self.summarize_fn is None:
             raise RuntimeError("enable_compression=True requires embed_fn and summarize_fn")
 
-        candidates = [m for m in self.items if (self._step - m.created_at_step) >= self.compress_min_age_steps]
+        candidates = [m for m in self.items if not m.pinned and (self._step - m.created_at_step) >= self.compress_min_age_steps]
         if len(candidates) < self.compress_batch_size:
             return
 
@@ -224,23 +229,29 @@ class AdaptiveTrustStore:
         merged = MemoryItem(
             text=summary_text, embedding=merged_embedding, trust=merged_trust,
             hits=merged_hits, created_at_step=max(m.created_at_step for m in batch),
-            correct=None, is_poison=merged_is_poison,
+            correct=None, is_poison=merged_is_poison, uid=self._new_uid(), source="compressed",
+            successes=sum(m.successes for m in batch), failures=sum(m.failures for m in batch),
+            version=1 + max(m.version for m in batch),
         )
         self.items = [m for m in self.items if id(m) not in batch_ids] + [merged]
         self.n_compressions += 1
 
     def retrieve(self, query_embedding, k: int = 3):
+        self.last_explanations, self.last_filtered = [], 0
         if not self.items:
             return []
         embs = [m.embedding for m in self.items]
         sims = cosine_similarity([query_embedding], embs)[0]
-        scores = []
+        scores, detail = [], []
         for m, sim in zip(self.items, sims):
             if self.enable_trust and m.trust < self.t_min:
                 scores.append(-1e9)  # trust-based filtering
+                detail.append(None)
+                self.last_filtered += 1
                 continue
             if sim < self.min_similarity:
                 scores.append(-1e9)  # relevance floor
+                detail.append(None)
                 continue
             I = importance(sim, m.hits)
             if self.enable_forgetting:
@@ -254,14 +265,49 @@ class AdaptiveTrustStore:
             # this, a poisoned memory that happens to near-duplicate the
             # current question can out-rank genuinely trustworthy memories.
             gated_I = I * m.trust if self.enable_trust else I
-            scores.append(composite_score(m.trust, gated_I, F, self.w1, self.w2, self.w3))
+            score = composite_score(m.trust, gated_I, F, self.w1, self.w2, self.w3)
+            scores.append(score)
+            detail.append({"similarity": round(float(sim), 3), "importance": round(float(I), 3),
+                           "retention": round(float(F), 3), "score": round(float(score), 3)})
         order = np.argsort(-np.array(scores))[:k]
         chosen = [self.items[i] for i in order if scores[i] > -1e8]
+        self.last_explanations = [{**detail[i], "rank": r + 1} for r, i in enumerate(order) if scores[i] > -1e8]
         for m in chosen:
             m.hits += 1
         return chosen
 
-    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None):
+    # ---- note management (the Memory page) ----------------------------
+    def find(self, uid: str):
+        return next((m for m in self.items if m.uid == uid), None)
+
+    def remove(self, uid: str) -> bool:
+        before = len(self.items)
+        self.items = [m for m in self.items if m.uid != uid]
+        return len(self.items) < before
+
+    def set_pinned(self, uid: str, pinned: bool) -> bool:
+        m = self.find(uid)
+        if m is None:
+            return False
+        m.pinned = bool(pinned)
+        return True
+
+    def import_item(self, text: str, embedding, correct, **meta) -> bool:
+        """Add a note from outside (an export file). It does NOT keep the trust it arrived with: it restarts at
+        the initial level and must earn more, so an imported file cannot smuggle in a highly trusted wrong note.
+        Returns False for a duplicate."""
+        if any(m.text == text for m in self.items):
+            return False
+        self._step += 1
+        self.items.append(MemoryItem(text=text, embedding=embedding, trust=self.initial_trust, correct=correct,
+                                      created_at_step=self._step, is_poison=bool(meta.get("is_poison")),
+                                      uid=self._new_uid(), source="imported",
+                                      successes=int(meta.get("successes", 0)), failures=int(meta.get("failures", 0)),
+                                      version=int(meta.get("version", 1))))
+        self._n_added += 1
+        return True
+
+    def update_from_outcome(self, retrieved_items, task_correct: bool, used_mask=None, weight: float = 1.0):
         # Trust reflects "reliability... based on downstream task performance"
         # (README 2.1) -- but only for memories that actually contributed to
         # that outcome. Crediting/blaming every retrieved memory for the
@@ -271,14 +317,19 @@ class AdaptiveTrustStore:
         # despite it, which is exactly backwards. `used_mask[i]` -- the
         # model's own citation of which retrieved items it relied on -- gates
         # the update so an ignored memory's trust holds steady instead.
+        if used_mask is None:
+            used_mask = [True] * len(retrieved_items)
+        for m, used in zip(retrieved_items, used_mask):     # evidence counts are kept whatever the trust setting
+            if used:
+                m.successes += int(task_correct)
+                m.failures += int(not task_correct)
+                m.last_used_step = self._step
         if not self.enable_trust:
             return  # trust pillar off: nothing to update
         R = 1 if task_correct else -1
-        if used_mask is None:
-            used_mask = [True] * len(retrieved_items)
         for m, used in zip(retrieved_items, used_mask):
             if used:
-                m.trust = update_trust(m.trust, R, self.eta, self.delta)
+                m.trust = update_trust(m.trust, R, self.eta * weight, self.delta * weight)   # weaker evidence moves trust less
 
     def size(self):
         return len(self.items)
