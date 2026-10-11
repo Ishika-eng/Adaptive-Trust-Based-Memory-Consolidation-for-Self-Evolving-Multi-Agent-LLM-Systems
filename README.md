@@ -79,7 +79,7 @@ python3 pilot/experiment.py ablation  --domain math                 # Full / w/o
 python3 pilot/experiment.py baselines_poison --domain code          # none / static / Reflexion-style / ATMC
 python3 pilot/experiment.py agent     --domain code --heldout 20    # planner, reflection, curriculum
 python3 pilot/report.py baselines_poison --domain code              # tables, bootstrap CIs, exact McNemar
-pilot/.venv/bin/python -m pytest tests -q                           # 83 tests
+pilot/.venv/bin/python -m pytest tests -q                           # 148 tests
 ```
 Results go to `pilot/results/eval/`. Quick overrides: `PILOT_SEED`, `PILOT_N_TASKS`, `PILOT_EMBEDDING` (`fastembed` | `gemini` | `tfidf`).
 
@@ -100,6 +100,28 @@ passed or was rejected, go into the prompt); "+ New chat" starts a clean context
 assistant's own **next practice task**, chosen by the weakness curriculum (a benchmark task close to something it got wrong,
 or a new one while it has no mistakes) with the reason; "Let me practise it" solves it against its real tests, so memory
 learns verified results. Python only. Needs `GEMINI_API_KEY` in `.env`.
+
+**What the assistant does beyond answering** (all in `pilot/` and the Assistant / Memory / Evolution tabs):
+
+- **Auto-verification** (`pilot/autoverify.py`). With no tests supplied, it writes edge-case tests plus two alternative
+  solutions with different approaches and runs everything in the sandbox. A generated test counts only if at least two
+  independent solutions agree it is valid, and a verdict needs a solid body of agreed tests (otherwise "inconclusive");
+  a wrong first answer is replaced by an alternative that passes them. If the request is too vague to test it says
+  "underspecified" instead of guessing. Limits: this checks consistency with the request *as the model understood it*,
+  not your unstated intent; generated-test evidence moves memory trust at half strength (`autoverify.evidence_weight`),
+  and you can dispute an auto-verified answer afterwards, which retires its note. It costs about 3 extra model calls per question.
+- **Strategy evolution** (`pilot/strategy.py`, Evolution tab). Three ways of solving (plan first, direct, write-then-review)
+  are tracked per problem type (nearest-prototype matching with the memory embedder, no extra LLM call). It explores while
+  *practising* (tasks with real tests), and live questions use the champion. A strategy is promoted only when it has enough
+  attempts and the lower bound of its success rate reaches the default's; the champion is recomputed from the evidence each
+  time, so a promoted strategy that starts failing is rolled back automatically. This is a mechanism, not a measured
+  improvement: with a ~90% baseline and small samples per type, it has not been shown to raise accuracy.
+- **Memory management** (Memory tab). Each note records its evidence (times relied on in a correct / wrong answer), who verified
+  it (tests, you, generated tests, planted, merged, imported), when it was last used and its version. You can search, filter,
+  pin (protected from forgetting and merging), delete, export and import notes. Imported notes restart at the initial trust
+  level and must earn more, so an import file cannot smuggle in a highly trusted wrong note; an import from a different
+  embedder is rejected. Every retrieval explains itself (rank, similarity, trust, score) and reports how many notes were
+  skipped for low trust.
 
 **Run the demo app:**
 ```bash
@@ -1051,7 +1073,7 @@ What actually exists in this repository right now:
 │   ├── data/                     # gsm8k_test, HumanEval, mbpp
 │   └── results/                  # experiment logs (tfidf_baseline/ = results under the original TF-IDF embedder)
 │
-├── tests/                        # 83 pytest tests (scoring math, stores, sandbox, domains, agent, API)
+├── tests/                        # 148 pytest tests (scoring math, stores, sandbox, domains, agent, API)
 │
 └── app/                          # full-stack demo
     ├── backend/main.py, db.py    # FastAPI (assistant, memory, eval endpoints); SQLite persistence
