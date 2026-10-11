@@ -16,6 +16,7 @@ class Verdict:
     correct: bool
     stage: str    # "ok" | "wrong_answer" | "syntax_error" | "runtime_error" | "timeout" | "no_answer"
     detail: str = ""   # short, human-readable failure detail (fed into reflections)
+    evidence: str = "tests"   # where a verified verdict came from: "tests" | "user" | "generated" (weaker)
     verified: bool = True   # False = no ground truth (a user task with no tests): memory must not learn from it yet
 
 
@@ -52,6 +53,10 @@ class Domain:
 
     def extract_answer(self, raw: str, task: dict):
         raise NotImplementedError
+
+    def revise_prompt(self, task: dict, draft) -> str:
+        """Ask the model to review its own draft and return a corrected final answer (the `revise` strategy)."""
+        raise NotImplementedError(f"the {self.name} domain does not support self-revision")
 
     def check(self, task: dict, answer) -> Verdict:
         raise NotImplementedError
