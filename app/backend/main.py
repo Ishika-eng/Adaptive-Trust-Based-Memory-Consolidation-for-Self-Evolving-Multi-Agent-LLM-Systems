@@ -309,15 +309,29 @@ def agent_reset(req: DomainRequest):
 # A user task usually has no tests, so there is no ground truth. With tests, the sandbox
 # verifies the code and memory learns at once. Without them the answer is "unverified" and
 # memory learns only when the user says whether it worked (the user is the checker).
+#
+# Messages in one conversation see the last few exchanges (follow-ups). The assistant also
+# chooses its own next practice task with the weakness curriculum: a benchmark task close to
+# something it got wrong, solved against real tests so memory learns verified outcomes.
 def _build_chat_agent() -> Agent:
     cfg = _assistant_cfg()
     store = build_atmc(cfg, EMBEDDER, _summarize)
     db.load_store("agent_chat", store, EMBEDDER.name)
-    return build_agent(cfg, store, EMBEDDER, DOMAINS["code"], [], seed=cfg.app.sample_seed)
+    pool = DOMAINS["code"].load_tasks(cfg, cfg.app.assistant_pool, cfg.app.sample_seed)
+    agent = build_agent(cfg, store, EMBEDDER, DOMAINS["code"], pool, seed=cfg.app.sample_seed)
+    agent.history = db.load_history("chat") if store.size() else []
+    return agent
 
 
-CHAT = {"agent": _build_chat_agent(), "turns": db.load_turns(), "pending": {}}
+def _initial_chat() -> dict:
+    turns = db.load_turns()
+    return {"agent": _build_chat_agent(), "turns": turns, "pending": {}, "suggestion": None,
+            "conv": max([t.get("conversation", 1) for t in turns], default=1)}
+
+
+CHAT = _initial_chat()
 MAX_PROMPT_CHARS = 4000
+CONTEXT_TURNS = 3
 
 
 class AskRequest(BaseModel):
@@ -331,11 +345,39 @@ class FeedbackRequest(BaseModel):
     comment: str = ""
 
 
-def _turn(result, turn_id: str, req: AskRequest) -> dict:
+class PractiseRequest(BaseModel):
+    task_id: str
+
+
+def _outcome_line(t: dict) -> str:
+    if t["status"] == "passed":
+        return "the tests passed"
+    if t["status"] == "failed":
+        return f"it failed ({t['stage'].replace('_', ' ')}: {t['detail']})"
+    fb = t.get("feedback")
+    if fb:
+        return "the user confirmed it worked" if fb["correct"] else \
+            "the user said it did NOT work" + (f": {fb['comment']}" if fb["comment"] else "")
+    return "not verified"
+
+
+def _conversation_context() -> tuple[str, str]:
+    """(context text, the earlier user request) from the last few exchanges of this conversation."""
+    prev = [t for t in CHAT["turns"] if t.get("conversation") == CHAT["conv"] and not t.get("practice")]
+    prev = prev[-CONTEXT_TURNS:]
+    if not prev:
+        return "", ""
+    parts = [f"User: {t['prompt'][:600]}\nYour answer (code):\n```python\n{t['code'][:1500]}\n```\n"
+             f"Outcome: {_outcome_line(t)}" for t in prev]
+    return "\n\n".join(parts), prev[-1]["prompt"]
+
+
+def _turn(result, turn_id: str, prompt: str, tests: str = "", practice: bool = False) -> dict:
     v, domain = result.verdict, DOMAINS["code"]
     status = "unverified" if not v.verified else ("passed" if v.correct else "failed")
     return {
-        "id": turn_id, "prompt": req.prompt.strip(), "tests": req.tests.strip(),
+        "id": turn_id, "conversation": CHAT["conv"], "practice": practice,
+        "prompt": prompt.strip(), "tests": tests.strip(),
         "explanation": domain.explanation(result.raw), "code": result.answer or "",
         "plan": result.plan, "retrieved": _retrieved_json(result),
         "status": status, "stage": v.stage, "detail": v.detail, "output": v.detail if status == "unverified" else "",
@@ -348,6 +390,7 @@ def _turn(result, turn_id: str, req: AskRequest) -> dict:
 
 def _save_chat():
     db.save_store("agent_chat", CHAT["agent"].store, EMBEDDER.name)
+    db.save_history("chat", CHAT["agent"].history)
 
 
 @app.post("/api/chat/ask")
@@ -360,17 +403,28 @@ def chat_ask(req: AskRequest):
     with LOCK:
         agent = CHAT["agent"]
         turn_id = f"t{len(CHAT['turns']) + 1}"
-        task = DOMAINS["code"].user_task(prompt, req.tests, idx=len(CHAT["turns"]) + 1)
+        context, previous = _conversation_context()
+        task = DOMAINS["code"].user_task(prompt, req.tests, idx=len(CHAT["turns"]) + 1,
+                                         context=context, previous=previous)
         result = _quota_guard(lambda: agent.attempt(task))
         if result.verdict.verified:
             _quota_guard(lambda: agent.learn(result))
             _save_chat()
         else:
             CHAT["pending"][turn_id] = result
-        turn = _turn(result, turn_id, req)
+        turn = _turn(result, turn_id, prompt, req.tests)
+        turn["followup"] = bool(context)
         CHAT["turns"].append(turn)
         db.save_turn(turn)
     return turn
+
+
+@app.post("/api/chat/new")
+def chat_new():
+    """Start a fresh conversation: earlier messages stop being context, but memory is kept."""
+    with LOCK:
+        CHAT["conv"] += 1
+    return {"conversation": CHAT["conv"]}
 
 
 @app.post("/api/chat/feedback")
@@ -393,6 +447,52 @@ def chat_feedback(req: FeedbackRequest):
     return turn
 
 
+def _suggest(agent: Agent) -> dict | None:
+    """The assistant's own choice of what to practise next (weakness curriculum), with the reason."""
+    try:
+        task = agent.next_task()
+    except StopIteration:
+        return None
+    mode = getattr(agent.curriculum, "last_mode", None)
+    note = agent.curriculum.related_failure(task, agent.store, EMBEDDER) if mode == "weakness" else None
+    if note is not None:
+        title = note.text.split("\n")[0].replace("Task: ", "")[:90]
+        reason = f"This is close to a task I got wrong before: \u201c{title}\u201d."
+    elif mode == "explore":
+        reason = "I'm trying something different so I don't get stuck practising only one area."
+    else:
+        reason = "I haven't made a mistake yet, so I'm trying something new."
+    return {"id": task["id"], "question": task["question"][:400], "reason": reason}
+
+
+@app.get("/api/chat/suggest")
+def chat_suggest(refresh: bool = False):
+    with LOCK:
+        if refresh or CHAT["suggestion"] is None or CHAT["suggestion"]["id"] in CHAT["agent"].done_ids:
+            CHAT["suggestion"] = _suggest(CHAT["agent"])
+        return CHAT["suggestion"] or {"id": None}
+
+
+@app.post("/api/chat/practise")
+def chat_practise(req: PractiseRequest):
+    """The assistant works on a task it chose itself. Benchmark tasks come with real tests, so the
+    result is verified and memory learns from it straight away."""
+    with LOCK:
+        agent = CHAT["agent"]
+        task = next((t for t in agent.pool if t["id"] == req.task_id), None)
+        if task is None or task["id"] in agent.done_ids:
+            raise HTTPException(404, "that practice task is not available")
+        result = _quota_guard(lambda: agent.attempt(task))
+        _quota_guard(lambda: agent.learn(result))
+        _save_chat()
+        turn = _turn(result, f"t{len(CHAT['turns']) + 1}", task["question"], practice=True)
+        turn["followup"] = False
+        CHAT["turns"].append(turn)
+        db.save_turn(turn)
+        CHAT["suggestion"] = None
+    return turn
+
+
 @app.get("/api/chat/history")
 def chat_history():
     return CHAT["turns"]
@@ -400,13 +500,16 @@ def chat_history():
 
 @app.get("/api/chat/summary")
 def chat_summary():
-    turns, store = CHAT["turns"], CHAT["agent"].store
+    store = CHAT["agent"].store
+    turns = [t for t in CHAT["turns"] if not t.get("practice")]
+    practice = [t for t in CHAT["turns"] if t.get("practice")]
     good = sum(t["status"] == "passed" or (t["feedback"] or {}).get("correct", False) for t in turns)
     return {
         "asked": len(turns), "solved": good,
+        "practised": len(practice), "practised_passed": sum(t["status"] == "passed" for t in practice),
         "awaiting_feedback": sum(t["status"] == "unverified" and t["feedback"] is None for t in turns),
         "memory_size": store.size(), "n_compressions": store.n_compressions,
-        "isolation": ISOLATION,
+        "conversation": CHAT["conv"], "isolation": ISOLATION,
     }
 
 
@@ -414,8 +517,10 @@ def chat_summary():
 def chat_reset():
     with LOCK:
         db.clear_store("agent_chat")
+        db.clear_history("chat")
         db.clear_turns()
-        CHAT.update(agent=_build_chat_agent(), turns=[], pending={})
+        CHAT.clear()
+        CHAT.update(_initial_chat())
     return {"ok": True}
 
 
