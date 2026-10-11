@@ -60,6 +60,17 @@ agent:
   curriculum: random          # fixed | random | weakness (practise where past failures cluster)
   curriculum_explore: 0.2     # chance of a random pick under 'weakness'
 
+strategy:                     # chat assistant: learns which way of solving works for each problem type
+  enabled: true
+  min_trials: 5               # evidence needed before a challenger can be promoted
+  explore: 0.1                # chance a live question tries a less-tested strategy
+
+autoverify:                   # chat assistant, tasks given without tests
+  enabled: true
+  candidates: 3               # independent solutions (the answer + alternatives)
+  tests: 8                    # generated assert statements
+  evidence_weight: 0.5        # trust moves half as much for generated-test evidence as for real tests
+
 coding:
   datasets: [humaneval, mbpp]   # pool code tasks are sampled from
   timeout_s: 10               # wall-clock limit per test run in the sandbox
