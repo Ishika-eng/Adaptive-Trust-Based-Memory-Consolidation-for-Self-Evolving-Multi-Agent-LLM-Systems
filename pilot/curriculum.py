@@ -42,17 +42,32 @@ class RandomCurriculum(Curriculum):
 class WeaknessCurriculum(Curriculum):
     def __init__(self, explore: float = 0.2):
         self.explore = explore
+        self.last_mode = None      # "cold" (no failures yet) | "explore" (random) | "weakness" -- why the last pick
 
     def choose(self, pool, done_ids, store, embedder, rng):
         remaining = [t for t in pool if t["id"] not in done_ids]
         if not remaining:
             raise StopIteration("task pool exhausted")
         failures = [m for m in store.items if m.correct is False and not m.is_poison]
-        if not failures or rng.random() < self.explore:
+        if not failures:
+            self.last_mode = "cold"
             return rng.choice(remaining)
+        if rng.random() < self.explore:
+            self.last_mode = "explore"
+            return rng.choice(remaining)
+        self.last_mode = "weakness"
         fail_vecs = np.array([m.embedding for m in failures])
         scores = [float(np.max(fail_vecs @ embedder.embed(t["question"]))) for t in remaining]
         return remaining[int(np.argmax(scores))]
+
+    @staticmethod
+    def related_failure(task, store, embedder):
+        """The agent's own failure note closest to `task` (why the weakness curriculum picks it), or None."""
+        failures = [m for m in store.items if m.correct is False and not m.is_poison]
+        if not failures:
+            return None
+        q = embedder.embed(task["question"])
+        return max(failures, key=lambda m: float(np.dot(m.embedding, q)))
 
 
 def make_curriculum(cfg) -> Curriculum:
