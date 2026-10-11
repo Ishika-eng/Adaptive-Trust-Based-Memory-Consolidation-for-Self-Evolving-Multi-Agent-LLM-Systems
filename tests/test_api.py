@@ -201,3 +201,64 @@ def test_unexpected_backend_errors_come_back_as_readable_json_not_a_crash(api, f
     fake_llm(boom)
     r = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"})
     assert r.status_code == 502 and "API key not valid" in r.json()["detail"]
+
+
+def _capturing(api, code="def add(a, b):\n    return a + b"):
+    prompts = []
+    inner = _chat_script(api, code)
+
+    def script(prompt):
+        prompts.append(prompt)
+        return inner(prompt)
+    script.mode = ""
+    return script, prompts
+
+
+def test_followup_sees_the_earlier_exchange_and_a_new_chat_does_not(api, fake_llm):
+    script, prompts = _capturing(api)
+    fake_llm(script)
+    api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"})
+    t2 = api.post("/api/chat/ask", json={"prompt": "now make it accept three numbers"}).json()
+    solve = [p for p in prompts if "careful Python coding assistant" in p][-1]
+    assert t2["followup"] is True
+    assert "Earlier in this conversation" in solve and "return a + b" in solve and "the tests passed" in solve
+    assert "now make it accept three numbers" in solve
+
+    assert api.post("/api/chat/new").json()["conversation"] == 2
+    t3 = api.post("/api/chat/ask", json={"prompt": "write a sorter"}).json()
+    last = [p for p in prompts if "careful Python coding assistant" in p][-1]
+    assert t3["followup"] is False and "Earlier in this conversation" not in last and t3["conversation"] == 2
+
+
+def test_followup_carries_the_users_rejection_into_the_context(api, fake_llm):
+    script, prompts = _capturing(api)
+    fake_llm(script)
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    api.post("/api/chat/feedback", json={"id": t["id"], "correct": False, "comment": "must support floats"})
+    api.post("/api/chat/ask", json={"prompt": "fix it"})
+    solve = [p for p in prompts if "careful Python coding assistant" in p][-1]
+    assert "did NOT work: must support floats" in solve
+
+
+def test_assistant_suggests_a_task_explains_why_and_practises_it_verified(api, fake_llm):
+    fake_llm(_chat_script(api))
+    s = api.get("/api/chat/suggest").json()
+    assert s["id"] and "haven't made a mistake" in s["reason"]
+    assert api.get("/api/chat/suggest").json()["id"] == s["id"]            # stable until used or refreshed
+
+    turn = api.post("/api/chat/practise", json={"task_id": s["id"]}).json()
+    assert turn["practice"] is True and turn["status"] == "passed"         # real tests, verified
+    summary = api.get("/api/chat/summary").json()
+    assert summary["practised"] == 1 and summary["practised_passed"] == 1 and summary["asked"] == 0
+    assert summary["memory_size"] == 1                                      # it learned from it
+    assert api.post("/api/chat/practise", json={"task_id": s["id"]}).status_code == 404   # no repeats
+    assert api.get("/api/chat/suggest").json()["id"] != s["id"]
+
+
+def test_suggestion_after_a_failure_points_at_that_failure(api, fake_llm):
+    fake_llm(_chat_script(api, "def add(a, b):\n    return a - b"))
+    api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"})
+    main = api.main
+    main.CHAT["agent"].curriculum.explore = 0.0                             # force the weakness branch
+    s = api.get("/api/chat/suggest?refresh=true").json()
+    assert "close to a task I got wrong" in s["reason"] and "write add(a, b)" in s["reason"]
