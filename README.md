@@ -35,9 +35,9 @@ On GSM8K with deliberately planted wrong notes, trust-gated retrieval cut exposu
 - Compression merges notes (memory 42 vs 54 in the ablation) without raising poison exposure, but merging can mix a poisoned note into a clean summary (`n_poison_laundered` counts this).
 - **Irrelevant notes can cost a little accuracy (diagnosed, not fixed).** ATMC always injects the top-k notes however dissimilar. On the hardest code sample (seed 456) it failed two tasks (MBPP/444, 501) that no-memory solved, with three irrelevant notes in context and `USED: none` — the model ignored them but its answer still changed. An opt-in relevance floor (`retrieval.min_similarity`, tested at 0.75) halves prompt tokens (624 to 342 per task) but does not recover accuracy (88.3% either way) and lets ~7.7 planted notes through per run versus 0, so it is off by default. One threshold, tuned partly on that failure; the accuracy gap to no-memory (88.3% vs 89.2%) is within noise.
 - Baselines beyond static and a Reflexion-style buffer (SAGE-style, A-MEM — Section 9).
-- The `agent` preset (planner/reflection/curriculum on held-out tasks) has not been run, and full-dataset evaluation is not done; the Gemini free tier allows ~500 calls/day, which limits seed count. Run-to-run noise at temperature 0 is a couple of tasks per 40, so differences of a few points are within noise.
+- Full-dataset evaluation is not done, and the held-out sets are small (20 tasks per seed); the Gemini free tier allows ~500 calls/day, which limits seed count. Run-to-run noise at temperature 0 is a couple of tasks per 40, so differences of a few points are within noise.
 
-### Part B — The self-evolving agent (built around ATMC): implemented, evaluation in progress
+### Part B — The self-evolving agent (built around ATMC): implemented and evaluated, extra components not shown to help
 
 One shared loop ([`pilot/agent.py`](pilot/agent.py)) serves two domains (math, code):
 - **Planner** ([`pilot/planner.py`](pilot/planner.py)) — writes a plan without seeing memory.
@@ -47,7 +47,20 @@ One shared loop ([`pilot/agent.py`](pilot/agent.py)) serves two domains (math, c
 - **Persistence** — memory and history are saved in SQLite and survive restarts.
 - **Domains** ([`pilot/domains/`](pilot/domains/)) — GSM8K and HumanEval/MBPP (four MBPP tasks with known-broken tests are excluded).
 
-"Implemented" is not "validated": the individual contribution of planner, reflection and curriculum has not yet been measured (preset `agent`, which scores held-out tasks with frozen memory). Still absent: a reusable skill library — memories are raw text, not consolidated procedures. The system is training-free: the LLM's weights never change; "self-evolving" here means the memory and curriculum change.
+**Agent-component evaluation (code domain, 3 seeds, 40 training + 20 held-out tasks each, preset `agent`):**
+
+| Condition | Held-out pass rate | Tokens/task |
+|---|---|---|
+| ATMC alone | 88.3% ± 2.9 | 1164 |
+| + planner | 95.0% ± 5.0 | 1526 |
+| + planner + reflection | 95.0% ± 5.0 | 1561 |
+| + reflection only | 88.3% ± 2.9 | 1193 |
+| random task choice | 90.0% | 1178 |
+| weakness-targeted task choice | 90.0% | 900 |
+
+No component shows a significant benefit. The planner is the only lead: +6.7 points held-out (better on 4 tasks, worse on 0; bootstrap CI [+1.7, +13.3]) but exact McNemar p = 0.125, since only 4 tasks changed — suggestive, not established — and it costs ~31% more tokens and twice the calls. Reflection changed nothing (identical to plain ATMC on every task): it runs only after a failure and the model fails too rarely at a ~90% baseline. Neither curriculum beat plain ATMC held-out (+1.7 points, p = 1.0); the weakness-targeted curriculum's lower token use comes from the tasks it picks, not from efficiency. A larger held-out set (~60 tasks per seed) would be needed to confirm the planner effect.
+
+"Implemented" is not "validated": the loop works and is reliable, but its extra components have not been shown to improve accuracy at this benchmark's ceiling. Still absent: a reusable skill library — memories are raw text, not consolidated procedures. The system is training-free: the LLM's weights never change; "self-evolving" here means the memory and curriculum change.
 
 ## Getting Started
 
@@ -99,7 +112,8 @@ cd app/frontend && npm install && npm run dev
 |---|---|
 | Done | Real embeddings + central config; coding domain with sandboxed actor and test checker; planner, reflection, curriculum, persistence; unified experiment harness with paired statistics; 4-page app plus Assistant page |
 | Done | Evaluations: code poison baselines (3 seeds), math poison (3 seeds), ablation on math (5 seeds) and code (3 seeds) |
-| In progress | Held-out agent-component comparison (planner, reflection, curriculum), limited by ~500 API calls/day |
+| Done | Held-out agent-component comparison (planner, reflection, curriculum): no significant effect; planner is a lead only |
+| In progress | Optional larger held-out run (~60 tasks/seed) to confirm or reject the planner effect |
 | Remaining | Paper draft, correcting the stale "forgetting > trust" claim in the review slides, demo video, a skill library (optional) |
 
 ---
