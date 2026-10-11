@@ -158,3 +158,45 @@ def test_min_similarity_zero_keeps_old_behaviour():
     store.add("a", np.array([1.0, 0.0]), correct=True)
     store.add("b", np.array([0.0, 1.0]), correct=True)
     assert len(store.retrieve(np.array([1.0, 0.0]), k=3)) == 2
+
+
+def test_weaker_evidence_moves_trust_proportionally_less():
+    import numpy as np
+    from stores import AdaptiveTrustStore
+
+    def after(correct, weight):
+        s = AdaptiveTrustStore()
+        s.add("n", np.array([1.0, 0.0]), correct=True)
+        m = s.items[0]
+        before = m.trust
+        s.update_from_outcome([m], correct, used_mask=[True], weight=weight)
+        return m.trust - before
+    assert after(True, 0.5) == pytest.approx(0.5 * after(True, 1.0))
+    assert after(False, 0.5) == pytest.approx(0.5 * after(False, 1.0))
+    assert after(False, 0.5) < 0 < after(True, 0.5)
+
+
+def test_agent_learns_from_generated_evidence_at_the_configured_weight():
+    from types import SimpleNamespace
+    import numpy as np
+    from agent import Agent
+    from config import load_config
+    from domains.base import Verdict
+    from stores import AdaptiveTrustStore
+
+    store = AdaptiveTrustStore()
+    store.add("old note", np.array([1.0, 0.0]), correct=True)
+    note = store.items[0]
+    agent = Agent(cfg=load_config(), domain=SimpleNamespace(reflection=lambda *a: "n"), store=store, embedder=None)
+    t0 = note.trust
+
+    def result(evidence):
+        r = SimpleNamespace(learned=False, verdict=Verdict(True, "ok", evidence=evidence), task={"id": "x"},
+                            answer="a", raw="r", retrieved=[note], used_mask=[True], q_emb=np.array([1.0, 0.0]),
+                            tokens_in=0, tokens_out=0, memory_size=0, lesson=None, note="", to_log=lambda: {})
+        return r
+    agent.learn(result("generated"))
+    gain_generated = note.trust - t0
+    note.trust = t0
+    agent.learn(result("tests"))
+    assert gain_generated == pytest.approx(0.5 * (note.trust - t0))
