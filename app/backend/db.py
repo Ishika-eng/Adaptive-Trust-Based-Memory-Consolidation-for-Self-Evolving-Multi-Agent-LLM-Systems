@@ -39,6 +39,13 @@ def _connect() -> sqlite3.Connection:
         )
         """
     )
+    have = {row[1] for row in conn.execute("PRAGMA table_info(memories)")}
+    for col, ddl in (("uid", "TEXT NOT NULL DEFAULT ''"), ("source", "TEXT NOT NULL DEFAULT 'tests'"),
+                     ("successes", "INTEGER NOT NULL DEFAULT 0"), ("failures", "INTEGER NOT NULL DEFAULT 0"),
+                     ("last_used_step", "INTEGER"), ("version", "INTEGER NOT NULL DEFAULT 1"),
+                     ("pinned", "INTEGER NOT NULL DEFAULT 0")):
+        if col not in have:                       # older databases gain the new evidence columns in place
+            conn.execute(f"ALTER TABLE memories ADD COLUMN {col} {ddl}")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS store_state (
@@ -55,6 +62,7 @@ def _connect() -> sqlite3.Connection:
         "domain TEXT NOT NULL, idx INTEGER NOT NULL, entry TEXT NOT NULL, PRIMARY KEY (domain, idx))"
     )
     conn.execute("CREATE TABLE IF NOT EXISTS chat (id TEXT PRIMARY KEY, idx INTEGER NOT NULL, entry TEXT NOT NULL)")
+    conn.execute("CREATE TABLE IF NOT EXISTS strategy_events (idx INTEGER PRIMARY KEY, entry TEXT NOT NULL)")
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     return conn
 
@@ -69,8 +77,9 @@ def save_store(store_name: str, store, embedder_id: str) -> None:
     conn = _connect()
     conn.execute("DELETE FROM memories WHERE store_name = ?", (store_name,))
     conn.executemany(
-        "INSERT INTO memories (store_name, text, embedding, trust, hits, "
-        "created_at_step, correct, is_poison) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO memories (store_name, text, embedding, trust, hits, created_at_step, correct, is_poison, "
+        "uid, source, successes, failures, last_used_step, version, pinned) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 store_name,
@@ -81,6 +90,7 @@ def save_store(store_name: str, store, embedder_id: str) -> None:
                 m.created_at_step,
                 None if m.correct is None else int(m.correct),
                 int(m.is_poison),
+                m.uid, m.source, m.successes, m.failures, m.last_used_step, m.version, int(m.pinned),
             )
             for m in store.items
         ],
@@ -124,7 +134,8 @@ def load_store(store_name: str, store, embedder_id: str) -> bool:
         clear_store(store_name)
         return False
     rows = conn.execute(
-        "SELECT text, embedding, trust, hits, created_at_step, correct, is_poison "
+        "SELECT text, embedding, trust, hits, created_at_step, correct, is_poison, "
+        "uid, source, successes, failures, last_used_step, version, pinned "
         "FROM memories WHERE store_name = ? ORDER BY id",
         (store_name,),
     ).fetchall()
@@ -147,10 +158,16 @@ def load_store(store_name: str, store, embedder_id: str) -> bool:
             hits=hits,
             created_at_step=created_at_step,
             correct=None if correct is None else bool(correct),
-            is_poison=bool(is_poison),
+            is_poison=bool(is_poison), uid=uid, source=source, successes=successes, failures=failures,
+            last_used_step=last_used_step, version=version, pinned=bool(pinned),
         )
-        for (text, embedding, trust, hits, created_at_step, correct, is_poison) in rows
+        for (text, embedding, trust, hits, created_at_step, correct, is_poison,
+             uid, source, successes, failures, last_used_step, version, pinned) in rows
     ]
+    if hasattr(store, "_new_uid"):
+        for m in store.items:                     # rows saved before notes had ids
+            if not m.uid:
+                m.uid = store._new_uid()
     if state:
         step, n_added, n_compressions, n_poison_laundered = state
         if hasattr(store, "_step"):
@@ -222,3 +239,23 @@ def clear_turns() -> None:
     conn.execute("DELETE FROM chat")
     conn.commit()
     conn.close()
+
+
+# ---- strategy evidence: one row per attempt (outcome may be filled in later) ----
+def save_events(events: list[dict]) -> None:
+    conn = _connect()
+    conn.execute("DELETE FROM strategy_events")
+    conn.executemany("INSERT INTO strategy_events (idx, entry) VALUES (?, ?)", [(i, json.dumps(e)) for i, e in enumerate(events)])
+    conn.commit()
+    conn.close()
+
+
+def load_events() -> list[dict]:
+    conn = _connect()
+    rows = conn.execute("SELECT entry FROM strategy_events ORDER BY idx").fetchall()
+    conn.close()
+    return [json.loads(r[0]) for r in rows]
+
+
+def clear_events() -> None:
+    save_events([])
