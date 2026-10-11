@@ -27,7 +27,7 @@ def api(tmp_path, monkeypatch, fake_llm):
             return "1. think\n2. write the function"
         if "previous attempt" in prompt:
             return "Check the edge cases."
-        if "Python programming task" in prompt:
+        if "Python programming task" in prompt or "Draft solution" in prompt:
             tid = next(i for i, t in code_pool.items() if t["question"] in prompt)
             t = code_pool[tid]
             body = t["reference"] if t["dataset"] == "mbpp" else t["question"] + t["reference"]
@@ -37,6 +37,7 @@ def api(tmp_path, monkeypatch, fake_llm):
         return "SUMMARY"
     script.mode = ""
     fake_llm(script)
+    main.BOOK.explore = 0.0              # live questions use the champion, so tests don't depend on chance
     client = TestClient(main.app)
     client.script, client.main = script, main
     return client
@@ -143,7 +144,7 @@ def _chat_script(api, code="def add(a, b):\n    return a + b"):
     base = api.script
 
     def script(prompt):
-        if "careful Python coding assistant" in prompt:
+        if "careful Python coding assistant" in prompt or "Request:\nwrite add" in prompt:
             return f"Add them.\n```python\n{code}\n```"
         return base(prompt)
     script.mode = ""
@@ -262,3 +263,146 @@ def test_suggestion_after_a_failure_points_at_that_failure(api, fake_llm):
     main.CHAT["agent"].curriculum.explore = 0.0                             # force the weakness branch
     s = api.get("/api/chat/suggest?refresh=true").json()
     assert "close to a task I got wrong" in s["reason"] and "write add(a, b)" in s["reason"]
+
+
+def _autocheck_script(api, answers):
+    """Chat solutions come from `answers` in order; test generation returns three asserts."""
+    base = _chat_script(api)
+    queue = list(answers)
+
+    def script(prompt):
+        if "Python `assert` statements" in prompt:
+            return "```python\nassert add(1, 2) == 3\nassert add(0, 4) == 4\nassert add(-1, 1) == 0\n```"
+        if "careful Python coding assistant" in prompt:
+            return f"Adds them.\n```python\n{queue.pop(0)}\n```"
+        return base(prompt)
+    script.mode = ""
+    return script
+
+
+GOOD_A = "def add(a, b):\n    return a + b"
+GOOD_B = "def add(a, b):\n    return b + a"
+GOOD_C = "def add(a, b):\n    return sum([a, b])"
+BAD_A = "def add(a, b):\n    return a - b"
+
+
+def test_chat_without_tests_is_auto_verified_and_memory_learns_at_half_strength(api, fake_llm):
+    fake_llm(_autocheck_script(api, [GOOD_A, GOOD_B, GOOD_C]))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    assert t["status"] == "auto_verified" and t["autocheck"]["status"] == "verified" and t["autocheck"]["n_reliable"] == 3
+    assert api.get("/api/chat/summary").json()["memory_size"] == 1      # learned with no user input
+    assert api.get("/api/chat/summary").json()["solved"] == 1
+
+
+def test_chat_switches_to_the_alternative_that_passes_the_agreed_tests(api, fake_llm):
+    fake_llm(_autocheck_script(api, [BAD_A, GOOD_B, GOOD_C]))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    assert t["status"] == "auto_verified" and t["autocheck"]["status"] == "switched"
+    assert "b + a" in t["code"] or "sum(" in t["code"]
+
+
+def test_inconclusive_autocheck_falls_back_to_asking_the_user(api, fake_llm):
+    fake_llm(_autocheck_script(api, [GOOD_A, GOOD_A, GOOD_A]))            # identical code is not independent evidence
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    assert t["status"] == "unverified" and t["autocheck"]["status"] == "inconclusive"
+    assert api.get("/api/chat/summary").json()["memory_size"] == 0
+
+
+def test_autocheck_can_be_turned_off_per_question(api, fake_llm):
+    fake_llm(_autocheck_script(api, [GOOD_A]))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "autocheck": False}).json()
+    assert t["status"] == "unverified" and t["autocheck"] is None
+
+
+def test_disputing_an_auto_verified_answer_retires_its_note_and_stores_a_failure(api, fake_llm):
+    fake_llm(_autocheck_script(api, [GOOD_A, GOOD_B, GOOD_C]))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    d = api.post("/api/chat/dispute", json={"id": t["id"], "comment": "wrong for floats"}).json()
+    assert d["status"] == "disputed"
+    notes = api.get("/api/memory/chat").json()
+    assert len(notes) == 2
+    assert [n["trust"] for n in notes if n["correct"] is False and n["trust"] == 0.0]          # the retired note
+    assert any("wrong for floats" in n["text"] for n in notes)
+    assert api.post("/api/chat/dispute", json={"id": t["id"]}).status_code == 409
+    assert api.post("/api/chat/dispute", json={"id": "nope"}).status_code == 404
+
+
+def test_strategy_is_chosen_recorded_and_resolved_when_the_outcome_is_known(api, fake_llm):
+    fake_llm(_chat_script(api))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"}).json()
+    assert t["strategy"]["name"] in ("plan_first", "direct", "revise") and t["strategy"]["mode"] == "serve"
+    board = api.get("/api/chat/strategies").json()
+    assert board["total"] == 1 and board["events"][0]["success"] is True            # tests decided it at once
+
+    # no tests, auto-check off -> the outcome is unknown until the user answers
+    u = api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "autocheck": False}).json()
+    assert api.get("/api/chat/strategies").json()["events"][0]["success"] is None
+    api.post("/api/chat/feedback", json={"id": u["id"], "correct": False})
+    assert api.get("/api/chat/strategies").json()["events"][0]["success"] is False
+
+
+def test_practising_explores_and_its_verified_result_feeds_the_scoreboard(api, fake_llm):
+    fake_llm(_chat_script(api))
+    s = api.get("/api/chat/suggest").json()
+    turn = api.post("/api/chat/practise", json={"task_id": s["id"]}).json()
+    assert turn["strategy"]["mode"] == "practise" and "least" in turn["strategy"]["reason"]
+    ev = api.get("/api/chat/strategies").json()["events"][0]
+    assert ev["mode"] == "practise" and ev["success"] is True
+
+
+def test_disputing_an_auto_verified_answer_turns_its_strategy_win_into_a_loss(api, fake_llm):
+    fake_llm(_autocheck_script(api, [GOOD_A, GOOD_B, GOOD_C]))
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b)"}).json()
+    assert api.get("/api/chat/strategies").json()["events"][0]["success"] is True
+    api.post("/api/chat/dispute", json={"id": t["id"]})
+    assert api.get("/api/chat/strategies").json()["events"][0]["success"] is False
+
+
+def test_strategy_evidence_survives_a_restart_and_clears_on_reset(api, fake_llm):
+    fake_llm(_chat_script(api))
+    api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"})
+    assert len(api.main.db.load_events()) == 1
+    api.post("/api/chat/reset")
+    assert api.main.db.load_events() == [] and api.get("/api/chat/strategies").json()["total"] == 0
+
+
+def test_memory_listing_exposes_evidence_and_retrieval_explains_itself(api, fake_llm):
+    fake_llm(_chat_script(api))
+    api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"})
+    t = api.post("/api/chat/ask", json={"prompt": "write add(a, b) again", "tests": "assert add(1, 2) == 3"}).json()
+    note = api.get("/api/memory/chat").json()[0]
+    assert {"uid", "source", "successes", "failures", "version", "pinned", "last_used_step", "gated"} <= note.keys()
+    assert note["source"] == "tests" and note["uid"]
+    first = t["retrieved"][0]
+    assert first["why"]["rank"] == 1 and "similarity" in first["why"] and t["filtered"] == 0
+
+
+def test_pin_delete_export_and_import_roundtrip(api, fake_llm):
+    fake_llm(_chat_script(api))
+    api.post("/api/chat/ask", json={"prompt": "write add(a, b)", "tests": "assert add(1, 2) == 3"})
+    uid = api.get("/api/memory/chat").json()[0]["uid"]
+    assert api.post("/api/memory/chat/pin", json={"uid": uid, "pinned": True}).status_code == 200
+    assert api.get("/api/memory/chat").json()[0]["pinned"] is True
+    assert api.post("/api/memory/chat/pin", json={"uid": "zzz"}).status_code == 404
+
+    export = api.get("/api/memory/chat/export").json()
+    assert export["format"] == "atmc-memory/1" and len(export["items"]) == 1
+
+    assert api.delete(f"/api/memory/chat/{uid}").json()["memory_size"] == 0
+    assert api.delete(f"/api/memory/chat/{uid}").status_code == 404
+
+    export["items"][0]["trust"] = 1.0                      # a hostile file claiming maximum trust
+    done = api.post("/api/memory/chat/import", json=export).json()
+    assert done["added"] == 1 and done["memory_size"] == 1
+    imported = api.get("/api/memory/chat").json()[0]
+    assert imported["source"] == "imported" and imported["trust"] == 0.5 and imported["pinned"] is False
+    assert api.post("/api/memory/chat/import", json=export).json()["skipped_duplicates"] == 1
+
+
+def test_import_rejects_foreign_embedders_and_malformed_notes(api, fake_llm):
+    bad_embedder = {"embedder": "other:model", "items": []}
+    assert api.post("/api/memory/chat/import", json=bad_embedder).status_code == 400
+    wrong_dim = {"embedder": api.main.EMBEDDER.name, "items": [{"text": "x", "embedding": [0.1, 0.2]}]}
+    assert api.post("/api/memory/chat/import", json=wrong_dim).status_code == 400
+    too_many = {"embedder": api.main.EMBEDDER.name, "items": [{"text": "x", "embedding": [0.0]}] * 2001}
+    assert api.post("/api/memory/chat/import", json=too_many).status_code == 400
