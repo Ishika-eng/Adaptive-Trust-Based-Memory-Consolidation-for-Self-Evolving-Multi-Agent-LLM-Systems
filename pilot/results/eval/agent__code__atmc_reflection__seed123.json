@@ -1,0 +1,762 @@
+{
+ "experiment": "agent",
+ "domain": "code",
+ "condition": "atmc_reflection",
+ "seed": 123,
+ "n": 40,
+ "heldout": 20,
+ "embedder": "fastembed:BAAI/bge-small-en-v1.5",
+ "condition_spec": {
+  "kind": "atmc",
+  "pillars": {},
+  "agent": {
+   "use_reflection": true
+  },
+  "retrieval": {}
+ },
+ "config": {
+  "model": {
+   "name": "gemini-3.5-flash-lite",
+   "temperature": 0.0,
+   "max_retries": 4,
+   "request_interval_s": 4.5,
+   "cache": true
+  },
+  "embedding": {
+   "backend": "fastembed",
+   "model": "BAAI/bge-small-en-v1.5",
+   "gemini_model": "gemini-embedding-001"
+  },
+  "retrieval": {
+   "top_k": 3,
+   "min_similarity": 0.0
+  },
+  "trust": {
+   "initial": 0.5,
+   "minimum": 0.3,
+   "reward": 0.05,
+   "penalty": 0.15
+  },
+  "decay": {
+   "lambda_0": 0.1,
+   "alpha": 1.0,
+   "beta": 1.0,
+   "prune_every": 10,
+   "prune_min_retention": 0.05
+  },
+  "composite": {
+   "w_trust": 0.4,
+   "w_importance": 0.4,
+   "w_decay": 0.2
+  },
+  "compression": {
+   "every": 8,
+   "batch_size": 3,
+   "min_age_steps": 5
+  },
+  "pillars": {
+   "trust": true,
+   "forgetting": true,
+   "compression": true
+  },
+  "evaluation": {
+   "dataset": "pilot/data/gsm8k_test.jsonl",
+   "n_tasks": 40,
+   "seeds": [
+    42,
+    123,
+    456
+   ],
+   "poison_every": 3,
+   "heldout": 0
+  },
+  "agent": {
+   "domain": "math",
+   "use_planner": false,
+   "use_reflection": true,
+   "curriculum": "fixed",
+   "curriculum_explore": 0.2
+  },
+  "coding": {
+   "datasets": [
+    "humaneval",
+    "mbpp"
+   ],
+   "timeout_s": 10
+  },
+  "app": {
+   "n_sample_tasks": 20,
+   "sample_seed": 42,
+   "assistant_pool": 60,
+   "assistant": {
+    "use_planner": true,
+    "use_reflection": true,
+    "curriculum": "weakness"
+   }
+  }
+ },
+ "summary": {
+  "pass_rate": 0.95,
+  "pass_rate_first_half": 0.9,
+  "pass_rate_second_half": 1.0,
+  "heldout_pass_rate": 0.9,
+  "poison_exposure": 0,
+  "poison_exposure_after_warmup": 0,
+  "poison_used": 0,
+  "n_poison_seeded": 0,
+  "final_memory_size": 30,
+  "n_compressions": 5,
+  "n_poison_laundered": 0,
+  "llm_calls": 67,
+  "api_calls": 4,
+  "cache_hits": 63,
+  "tokens_in": 58990,
+  "tokens_out": 12708,
+  "mean_retrieval_ms": 1.206925,
+  "wall_seconds": 19.2
+ },
+ "steps": [
+  {
+   "task_id": "MBPP/541",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 0,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.003,
+   "tokens_in": 67,
+   "tokens_out": 119,
+   "memory_size": 1,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/556",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 1,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.894,
+   "tokens_in": 313,
+   "tokens_out": 162,
+   "memory_size": 2,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/521",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 2,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.908,
+   "tokens_in": 520,
+   "tokens_out": 257,
+   "memory_size": 3,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/198",
+   "correct": false,
+   "stage": "wrong_answer",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.047,
+   "tokens_in": 1274,
+   "tokens_out": 388,
+   "memory_size": 4,
+   "planned": false,
+   "reflected": true
+  },
+  {
+   "task_id": "MBPP/723",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 2.591,
+   "tokens_in": 864,
+   "tokens_out": 63,
+   "memory_size": 5,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "HumanEval/68",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.934,
+   "tokens_in": 1120,
+   "tokens_out": 238,
+   "memory_size": 6,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/211",
+   "correct": false,
+   "stage": "syntax_error",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.899,
+   "tokens_in": 1223,
+   "tokens_out": 2286,
+   "memory_size": 7,
+   "planned": false,
+   "reflected": true
+  },
+  {
+   "task_id": "MBPP/969",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.726,
+   "tokens_in": 871,
+   "tokens_out": 152,
+   "memory_size": 6,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/94",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.811,
+   "tokens_in": 945,
+   "tokens_out": 86,
+   "memory_size": 7,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/441",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.801,
+   "tokens_in": 917,
+   "tokens_out": 76,
+   "memory_size": 8,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/62",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.941,
+   "tokens_in": 932,
+   "tokens_out": 45,
+   "memory_size": 9,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/353",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.93,
+   "tokens_in": 959,
+   "tokens_out": 52,
+   "memory_size": 10,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/499",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.937,
+   "tokens_in": 915,
+   "tokens_out": 37,
+   "memory_size": 11,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/868",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.952,
+   "tokens_in": 926,
+   "tokens_out": 66,
+   "memory_size": 12,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/958",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 0.905,
+   "tokens_in": 918,
+   "tokens_out": 216,
+   "memory_size": 13,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/809",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.084,
+   "tokens_in": 939,
+   "tokens_out": 75,
+   "memory_size": 12,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/624",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.667,
+   "tokens_in": 918,
+   "tokens_out": 35,
+   "memory_size": 13,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/510",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 2.111,
+   "tokens_in": 940,
+   "tokens_out": 182,
+   "memory_size": 14,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/99",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.338,
+   "tokens_in": 924,
+   "tokens_out": 41,
+   "memory_size": 15,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "HumanEval/35",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.236,
+   "tokens_in": 973,
+   "tokens_out": 113,
+   "memory_size": 16,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/836",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.303,
+   "tokens_in": 944,
+   "tokens_out": 466,
+   "memory_size": 17,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/357",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.301,
+   "tokens_in": 948,
+   "tokens_out": 64,
+   "memory_size": 18,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/589",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.184,
+   "tokens_in": 933,
+   "tokens_out": 120,
+   "memory_size": 19,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/155",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.121,
+   "tokens_in": 923,
+   "tokens_out": 2426,
+   "memory_size": 18,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "HumanEval/83",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.24,
+   "tokens_in": 931,
+   "tokens_out": 307,
+   "memory_size": 19,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/336",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.372,
+   "tokens_in": 922,
+   "tokens_out": 50,
+   "memory_size": 20,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "HumanEval/54",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.398,
+   "tokens_in": 1040,
+   "tokens_out": 177,
+   "memory_size": 21,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/465",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.278,
+   "tokens_in": 945,
+   "tokens_out": 53,
+   "memory_size": 22,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/780",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.178,
+   "tokens_in": 984,
+   "tokens_out": 100,
+   "memory_size": 23,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/120",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.235,
+   "tokens_in": 946,
+   "tokens_out": 59,
+   "memory_size": 24,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/405",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.392,
+   "tokens_in": 947,
+   "tokens_out": 39,
+   "memory_size": 25,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "HumanEval/40",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.255,
+   "tokens_in": 1071,
+   "tokens_out": 344,
+   "memory_size": 24,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/691",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.576,
+   "tokens_in": 986,
+   "tokens_out": 102,
+   "memory_size": 25,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/390",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.374,
+   "tokens_in": 946,
+   "tokens_out": 58,
+   "memory_size": 26,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/242",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.214,
+   "tokens_in": 917,
+   "tokens_out": 41,
+   "memory_size": 27,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "HumanEval/160",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.204,
+   "tokens_in": 1104,
+   "tokens_out": 272,
+   "memory_size": 28,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/946",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.15,
+   "tokens_in": 951,
+   "tokens_out": 83,
+   "memory_size": 29,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/573",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.171,
+   "tokens_in": 958,
+   "tokens_out": 47,
+   "memory_size": 30,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/13",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.166,
+   "tokens_in": 996,
+   "tokens_out": 96,
+   "memory_size": 31,
+   "planned": false,
+   "reflected": false
+  },
+  {
+   "task_id": "MBPP/416",
+   "correct": true,
+   "stage": "ok",
+   "n_retrieved": 3,
+   "n_poison_retrieved": 0,
+   "n_poison_used": 0,
+   "retrieval_ms": 1.45,
+   "tokens_in": 933,
+   "tokens_out": 171,
+   "memory_size": 30,
+   "planned": false,
+   "reflected": false
+  }
+ ],
+ "heldout_steps": [
+  {
+   "task_id": "MBPP/796",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/675",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/301",
+   "correct": false
+  },
+  {
+   "task_id": "MBPP/686",
+   "correct": false
+  },
+  {
+   "task_id": "MBPP/421",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/29",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/102",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/779",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/457",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/269",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/810",
+   "correct": true
+  },
+  {
+   "task_id": "HumanEval/60",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/474",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/959",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/785",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/734",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/764",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/889",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/444",
+   "correct": true
+  },
+  {
+   "task_id": "MBPP/646",
+   "correct": true
+  }
+ ]
+}
