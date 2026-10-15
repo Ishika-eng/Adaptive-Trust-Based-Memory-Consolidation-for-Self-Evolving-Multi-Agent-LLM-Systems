@@ -1,0 +1,19 @@
+{
+ "atmc_v3_nocards": {
+  "seeds": 1,
+  "pass_rate": 0.38181818181818183,
+  "first_half": 0.36363636363636365,
+  "second_half": 0.4,
+  "rule_pass": 0.24444444444444444,
+  "control_pass": 1.0
+ },
+ "static_repair": {
+  "seeds": 1,
+  "pass_rate": 0.4090909090909091,
+  "first_half": 0.4,
+  "second_half": 0.41818181818181815,
+  "rule_pass": 0.3,
+  "control_pass": 0.9
+ },
+ "paired": {}
+}

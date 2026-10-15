@@ -1,0 +1,3 @@
+condition,seed,n_steps,pass_rate,first_half,second_half,rule_pass,control_pass,final_memory,tokens_in,tokens_out,wall_seconds
+atmc_v3_nocards,42,110,0.3818,0.3636,0.4000,0.2444,1.0000,139,70815,16270,440.8
+static_repair,42,110,0.4091,0.4000,0.4182,0.3000,0.9000,138,58098,14635,710.5
