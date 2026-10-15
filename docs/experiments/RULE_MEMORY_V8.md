@@ -36,3 +36,9 @@ If neither holds, v6 stays the headline and the rule memory is reported as teste
 
 ## Honest expectations
 Strict bar: about one in four. Realistic bar: about even odds (v7 is 4.2 points short on accuracy and already clears the size and drift parts).
+
+## Amendment 1 (added 2026-10-15, before any v8 run)
+New task orders of the same 110 questions are not new data: every design choice from v1 to v7 was made while looking at how those questions behaved. The 60 held-out
+questions are the only set no design decision has seen. Therefore **on the 60 held-out questions alone, the frozen candidate's point estimate against `static_rm` must be
+non-negative (>= 0 points) for EITHER bar to count as passed.** If the held-out set disagrees with the 110-question runs, the outcome is reported as "not confirmed", together
+with the size of the gap between the two sets (a gap is itself evidence of overfitting to the 110 questions).
