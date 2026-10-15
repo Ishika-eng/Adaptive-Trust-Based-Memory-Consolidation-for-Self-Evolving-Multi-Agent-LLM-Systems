@@ -5,12 +5,14 @@ import Logo from './lib/Logo'
 import Assistant from './pages/Assistant'
 import BenchmarkLab from './pages/BenchmarkLab'
 import Evolution from './pages/Evolution'
+import LearningLab from './pages/LearningLab'
 import MemoryExplorer from './pages/MemoryExplorer'
 import Results from './pages/Results'
 import Architecture from './pages/Architecture'
 
 const PAGES = {
   assistant: { label: 'Assistant', component: Assistant },
+  learning: { label: 'Learning Lab', component: LearningLab },
   memory: { label: 'Memory', component: MemoryExplorer },
   evolution: { label: 'Evolution', component: Evolution },
   results: { label: 'Results', component: Results },
