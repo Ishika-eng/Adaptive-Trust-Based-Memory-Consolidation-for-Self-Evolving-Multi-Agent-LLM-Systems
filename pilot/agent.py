@@ -39,6 +39,9 @@ class StepResult:
     autocheck: object = None
     explain: list = field(default_factory=list)     # why each retrieved note was chosen
     filtered: int = 0                               # notes skipped because their trust was too low
+    cite_status: str = ""                           # how the USED line was read: listed | none | missing | unparseable | no_memories
+    stale_marked: int = 0                           # stored solutions proven wrong by the current checker (rule change detected)
+    repair: dict | None = None                      # {attempted, passed} when a failed attempt got one evidence-guided retry
 
     @property
     def correct(self) -> bool:
@@ -57,8 +60,12 @@ class StepResult:
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
             "memory_size": self.memory_size,
+            "cite_status": self.cite_status,
             "planned": self.plan is not None,
             "reflected": self.lesson is not None,
+            "stale_marked": self.stale_marked,
+            "repair_attempted": bool(self.repair and self.repair["attempted"]),
+            "repair_passed": bool(self.repair and self.repair["passed"]),
         }
 
 
@@ -103,6 +110,7 @@ class Agent:
         raw = llm.complete(self.domain.build_prompt(task, [m.text for m in retrieved], plan))
         answer = self.domain.extract_answer(raw, task)
         used_mask = llm.extract_used_mask(raw, len(retrieved))     # which notes the *first* draft relied on
+        cite_status = llm.citation_status(raw, len(retrieved))
         if strategy == "revise" and answer:
             raw = llm.complete(self.domain.revise_prompt(task, answer))
             answer = self.domain.extract_answer(raw, task) or answer
@@ -119,6 +127,7 @@ class Agent:
             tokens_out=after["output_tokens"] - before["output_tokens"],
             memory_size=self.store.size(), q_emb=q_emb,
             explain=list(getattr(self.store, "last_explanations", [])), filtered=getattr(self.store, "last_filtered", 0),
+            cite_status=cite_status,
         )
 
     def learn(self, result: StepResult, correct: bool | None = None, feedback: str = "") -> StepResult:
@@ -135,7 +144,18 @@ class Agent:
             result.verdict = verdict
         task, answer = result.task, result.answer
         weight = self.cfg.to_dict().get("autoverify", {}).get("evidence_weight", 0.5) if verdict.evidence == "generated" else 1.0
-        self.store.update_from_outcome(result.retrieved, verdict.correct, used_mask=result.used_mask, weight=weight)
+        # credit rule: "cited" (default) updates only notes the model reported using; "all" updates every retrieved
+        # note; "asymmetric" rewards only cited notes after a success but blames every retrieved note after a failure
+        rule = self.cfg.to_dict()["agent"].get("credit", "cited")
+        use_citations = rule == "cited" or (rule == "asymmetric" and verdict.correct)
+        mask = result.used_mask if use_citations else None
+        self.store.update_from_outcome(result.retrieved, verdict.correct, used_mask=mask, weight=weight)
+        if self.cfg.to_dict()["agent"].get("utility_credit", False) and hasattr(self.store, "record_outcome") and verdict.verified:
+            self.store.record_outcome(result.retrieved, verdict.correct)        # credit every shown note, cited or not
+
+        if (self.cfg.to_dict()["agent"].get("reverify_stale", False) and not verdict.correct and verdict.verified
+                and verdict.evidence == "tests" and hasattr(self.store, "mark_stale")):
+            result.stale_marked = self._reverify_stale(task)
 
         lesson = None
         if self.reflector and not verdict.correct:
@@ -147,12 +167,59 @@ class Agent:
         note = self.domain.reflection(task, result.raw, answer, verdict)
         if lesson:
             note += f"\nLesson: {lesson}"
-        self.store.add(note, result.q_emb, verdict.correct, source=verdict.evidence)
+        claim_ok = bool(self.cfg.to_dict()["agent"].get("evidence_note_trust", False)) and self.domain.note_claim_verified(verdict)
+        self.store.add(note, result.q_emb, verdict.correct, source=verdict.evidence, claim_verified=claim_ok)
+        self._repair_and_store(result, verdict)
 
         result.lesson, result.note, result.learned = lesson, note, True
         result.memory_size = self.store.size()
         self.history.append(result.to_log())
         return result
+
+    def _reverify_stale(self, task: dict) -> int:
+        """After a failure: run every stored solution for THIS function against the current checker. One that now fails was right
+        once and is wrong now (the rule changed): mark it stale. Solutions for other functions cannot be judged and are skipped."""
+        radius = self.cfg.retrieval.to_dict().get("stale_radius", 0.75)
+        marked = 0
+        for m in list(self.store.items):
+            code = self.domain.note_solution(m.text)
+            if code and getattr(m, "stale", False) is False and self.domain.reverify(task, code) is False:
+                self.store.mark_stale(m, radius=radius)
+                marked += 1
+        return marked
+
+    def _repair_and_store(self, result: StepResult, verdict: Verdict) -> None:
+        """One fresh attempt given only the checker's evidence. If it passes the tests, its solution is stored as a verified
+        worked example (the only way a failure turns into a correct example the model can imitate). The reported pass rate
+        always uses the FIRST attempt; this retry only feeds memory."""
+        if (not self.cfg.to_dict()["agent"].get("repair", False) or verdict.correct or not verdict.verified
+                or verdict.evidence != "tests"):
+            return
+        acfg = self.cfg.to_dict()["agent"]
+        notes = []
+        if acfg.get("repair_with_memory", False):
+            k = self.cfg.retrieval.top_k
+            if acfg.get("signature_repair", False) and hasattr(self.store, "retrieve_for_repair"):
+                notes = self.store.retrieve_for_repair(result.q_emb, self.domain.failure_signature(verdict), k=k)
+            else:
+                notes = self.store.retrieve(result.q_emb, k=k)
+        prompt = self.domain.repair_prompt(result.task, verdict, [m.text for m in notes] if notes else None)
+        if prompt is None:
+            return
+        before = llm.usage_snapshot()
+        raw = llm.complete(prompt)
+        answer = self.domain.extract_answer(raw, result.task)
+        second = self.domain.check(result.task, answer)
+        after = llm.usage_snapshot()
+        result.tokens_in += after["prompt_tokens"] - before["prompt_tokens"]
+        result.tokens_out += after["output_tokens"] - before["output_tokens"]
+        result.repair = {"attempted": True, "passed": bool(second.correct)}
+        if notes and acfg.get("utility_credit", False) and hasattr(self.store, "record_outcome"):
+            self.store.record_outcome(notes, second.correct)
+        if second.correct and second.verified:
+            example = self.domain.worked_example(result.task, answer, verdict)
+            if example:
+                self.store.add(example, result.q_emb, True, source="tests")
 
     def step(self, task: dict | None = None) -> StepResult:
         """One full benchmark step: attempt, then learn (the checker is ground truth)."""
