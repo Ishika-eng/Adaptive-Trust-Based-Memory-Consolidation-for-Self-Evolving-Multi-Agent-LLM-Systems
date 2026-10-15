@@ -63,6 +63,11 @@ class CodingDomain(Domain):
                     "entry_point": None, "tests": tests, "setup": d.get("test_setup_code", ""),
                     "reference": d["code"].replace("\r\n", "\n"),
                 })
+        elif dataset in ("conventions", "conventions_heldout", "conventions_drift", "conventions_drift2"):   # pilot/benchmarks/build_*.py
+            for line in open(ROOT / f"pilot/data/{dataset}.jsonl"):
+                d = json.loads(line)
+                tasks.append({k: d[k] for k in ("id", "dataset", "family", "role", "question", "entry_point", "tests", "setup",
+                                                "reference", "phase") if k in d})
         else:
             raise ValueError(f"unknown coding dataset {dataset!r}")
         return tasks
@@ -71,7 +76,14 @@ class CodingDomain(Domain):
         tasks = []
         for name in cfg.coding.datasets:
             tasks += self._load(name)
-        random.Random(seed).shuffle(tasks)
+        rng = random.Random(seed)
+        if list(cfg.coding.datasets) in (["conventions_drift"], ["conventions_drift2"]):
+            # a rule-change stream: every question first under the OLD rule (phase A), then under the NEW one (phase B)
+            a = [t for t in tasks if t["phase"] == "A"]
+            b = [t for t in tasks if t["phase"] == "B"]
+            rng.shuffle(a); rng.shuffle(b)
+            return (a + b)[:n]
+        rng.shuffle(tasks)
         return tasks[:n]
 
     # ---- prompting / extraction -------------------------------------
@@ -182,7 +194,67 @@ class CodingDomain(Domain):
         }
 
     # ---- memory notes ------------------------------------------------
+    @staticmethod
+    def _typed_evidence(detail: str) -> str:
+        """'f(1): expected 5, got 5.0' -> 'f(1) -> expected 5 (int) but got 5.0 (float)'. Pure parsing of what the checker
+        printed (no model involved), so the type information that usually reveals a convention cannot be hallucinated."""
+        m = re.search(r"(.+?): expected (.+), got (.+)$", detail)
+        if not m:
+            return detail
+        def kind(x):
+            try:
+                return type(ast.literal_eval(x)).__name__
+            except Exception:
+                return "?"
+        return f"{m.group(1)} -> expected {m.group(2)} ({kind(m.group(2))}) but got {m.group(3)} ({kind(m.group(3))})"
+
+    def note_solution(self, text):
+        if "Verified solution (" in text:
+            body = text.split("Verified solution (", 1)[1]
+            if "):\n" not in body or "\nOutcome: CORRECT" not in body:
+                return None
+            return body.split("):\n", 1)[1].split("\nOutcome: CORRECT", 1)[0]
+        if "\nSolution:\n" in text and "\nOutcome: CORRECT" in text:
+            return text.split("\nSolution:\n", 1)[1].split("\nOutcome: CORRECT", 1)[0]
+        return None
+
+    def reverify(self, task, code):
+        ep = task.get("entry_point")
+        if not ep or f"def {ep}(" not in code:
+            return None
+        return bool(self.check(task, code).correct)
+
+    def failure_signature(self, verdict):
+        from consolidate import detail_signature
+        return detail_signature(verdict.detail) if verdict.detail else set()
+
+    def repair_prompt(self, task, verdict, memories=None):
+        if verdict.stage not in ("wrong_answer", "runtime_error") or not verdict.detail:
+            return None
+        what = self._typed_evidence(verdict.detail) if verdict.stage == "wrong_answer" else verdict.detail
+        return (self.build_prompt(task, memories or []) +
+                f"\n\nA first attempt at this task FAILED the project's own check: {what}\n"
+                "The project follows conventions the task description does not state. Work out what the check expects "
+                "from that result, then write a new, complete solution that satisfies the project's conventions.")
+
+    def worked_example(self, task, answer, verdict):
+        code = (answer or "").strip()[:1200]
+        if not code:
+            return None
+        what = self._typed_evidence(verdict.detail) if verdict.stage == "wrong_answer" else verdict.detail
+        return (f"Task: {task['question'][:700]}\nVerified solution (it passes the project's check; an earlier attempt "
+                f"failed with: {what}):\n{code}\nOutcome: CORRECT")
+
+    def note_claim_verified(self, verdict) -> bool:
+        return (not verdict.correct and self.cfg.to_dict().get("coding", {}).get("note_style") == "evidence"
+                and verdict.stage in ("wrong_answer", "runtime_error"))
+
     def reflection(self, task, raw, answer, verdict):
+        if (not verdict.correct and self.cfg.to_dict().get("coding", {}).get("note_style") == "evidence"
+                and verdict.stage in ("wrong_answer", "runtime_error")):
+            # the failed code is left out: it anchors a small model on the very mistake the note should prevent
+            what = self._typed_evidence(verdict.detail) if verdict.stage == "wrong_answer" else verdict.detail
+            return f"Task: {task['question'][:700]}\nA solution to this task FAILED the project's check: {what}\nOutcome: INCORRECT"
         code = (answer or "").strip()[:1200]
         outcome = "CORRECT" if verdict.correct else f"INCORRECT ({verdict.stage}: {verdict.detail})"
         return f"Task: {task['question'][:700]}\nSolution:\n{code}\nOutcome: {outcome}"
