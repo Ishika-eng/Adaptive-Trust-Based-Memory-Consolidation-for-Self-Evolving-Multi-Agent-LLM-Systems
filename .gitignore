@@ -7,3 +7,4 @@ dist/
 *.log
 app/backend/memory.db
 pilot/results/llm_cache.sqlite
+.DS_Store
