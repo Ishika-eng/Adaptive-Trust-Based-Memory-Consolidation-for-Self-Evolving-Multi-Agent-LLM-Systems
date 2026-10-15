@@ -24,6 +24,15 @@ from sklearn.metrics.pairwise import cosine_similarity
 from memory import MemoryItem, update_trust, importance, retention_factor, composite_score
 
 
+def _allowed(text: str, show_kinds) -> bool:
+    """Abstention by kind: with show_kinds=None every note may be shown; otherwise only notes of those kinds (example, solved,
+    card, evidence). Notes of any other kind are never injected into a prompt -- the assistant 'abstains' from them."""
+    if not show_kinds:
+        return True
+    from consolidate import note_kind
+    return note_kind(text) in show_kinds
+
+
 class StaticMemoryStore:
     """Baseline: no trust scoring, no forgetting, no compression. Everything
     that's ever generated gets stored and is retrievable forever, ranked by
@@ -31,19 +40,27 @@ class StaticMemoryStore:
 
     name = "static"
 
-    def __init__(self, min_similarity: float = 0.0):
+    def __init__(self, min_similarity: float = 0.0, show_kinds=None):
         self.items: list[MemoryItem] = []
         self.min_similarity = min_similarity     # 0 = always return the top-k, however dissimilar
+        self.show_kinds = tuple(show_kinds) if show_kinds else None
 
-    def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests"):
+    def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests", claim_verified: bool = False):
         # unconditional storage -- no verification gate
         self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison, source=source))
+
+    def mark_stale(self, note, **_):
+        """Plain memory's only response to a note proven wrong: drop that one note (supersession)."""
+        self.items = [m for m in self.items if m is not note]
+        return 0
 
     def retrieve(self, query_embedding, k: int = 3):
         if not self.items:
             return []
         sims = cosine_similarity([query_embedding], [m.embedding for m in self.items])[0]
-        order = [i for i in np.argsort(-sims)[:k] if sims[i] >= self.min_similarity]
+        if self.show_kinds:
+            sims = np.where([_allowed(m.text, self.show_kinds) for m in self.items], sims, -np.inf)
+        order = [i for i in np.argsort(-sims)[:k] if sims[i] >= self.min_similarity and np.isfinite(sims[i])]
         chosen = [self.items[i] for i in order]
         for m in chosen:
             m.hits += 1
@@ -64,7 +81,7 @@ class NoMemoryStore:
     def __init__(self):
         self.items: list[MemoryItem] = []
 
-    def add(self, text, embedding, correct, is_poison: bool = False, source: str = "tests"):
+    def add(self, text, embedding, correct, is_poison: bool = False, source: str = "tests", claim_verified: bool = False):
         pass
 
     def retrieve(self, query_embedding, k: int = 3):
@@ -88,7 +105,7 @@ class ReflexionStyleStore:
         self.buffer_size = buffer_size
         self.items: list[MemoryItem] = []
 
-    def add(self, text, embedding, correct, is_poison: bool = False, source: str = "tests"):
+    def add(self, text, embedding, correct, is_poison: bool = False, source: str = "tests", claim_verified: bool = False):
         if correct and not is_poison:
             return
         self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison, source=source))
@@ -123,8 +140,17 @@ class AdaptiveTrustStore:
                  compress_min_age_steps: int = 5,
                  initial_trust: float = 0.5, prune_min_retention: float = 0.05,
                  embed_fn=None, summarize_fn=None, label: str | None = None,
-                 min_similarity: float = 0.0):
+                 min_similarity: float = 0.0, hit_boost: bool = True,
+                 evidence_merge: bool = False, evidence_threshold: float = 0.75, evidence_max_lines: int = 6,
+                 utility_rank: bool = False, show_kinds=None):
         self.items: list[MemoryItem] = []
+        self.show_kinds = tuple(show_kinds) if show_kinds else None
+        self.utility_rank = utility_rank           # rank by similarity x learned utility (see record_outcome), not the composite score
+        self.kind_stats: dict[str, list[int]] = {}  # note kind -> [answers that passed, answers it was shown for]
+        self.evidence_merge = evidence_merge       # fold similar failure-evidence notes into one rule card (consolidate.py)
+        self.evidence_threshold, self.evidence_max_lines = evidence_threshold, evidence_max_lines
+        self.n_cards_built = 0
+        self.hit_boost = hit_boost               # False: importance ignores how often a note was retrieved (no lock-in)
         self.min_similarity = min_similarity     # relevance floor: never inject a note this dissimilar to the task
         self.initial_trust = initial_trust
         self.prune_min_retention = prune_min_retention
@@ -155,17 +181,21 @@ class AdaptiveTrustStore:
         self._uid_counter = max(getattr(self, "_uid_counter", 0), max((int(m.uid[1:]) for m in self.items if m.uid[1:].isdigit()), default=0)) + 1
         return f"m{self._uid_counter}"
 
-    def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests"):
+    def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests", claim_verified: bool = False):
+        """claim_verified: the note only states something the checker verified (e.g. "this call returned X where Y was
+        expected"), so it enters with the trust of a verified note even though the attempt it describes FAILED."""
         self._step += 1
         if self.enable_trust:
             # Hard verification gate (README Section 5): only checker-verified
             # reflections enter the bank; the initial trust reflects that check.
-            R = 1 if correct else -1
+            R = 1 if (correct or claim_verified) else -1
             T0 = update_trust(self.initial_trust, R, self.eta, self.delta)
             if T0 < self.t_min:
                 return  # discarded at the gate -- never promoted
         else:
             T0 = 1.0  # trust pillar off: nothing is ever gated or down-weighted
+        if self.evidence_merge and claim_verified and self._fold_into_card(text, embedding, T0):
+            return
         self.items.append(MemoryItem(text=text, embedding=embedding, trust=T0, correct=correct,
                                       created_at_step=self._step, is_poison=is_poison, uid=self._new_uid(),
                                       source="planted" if is_poison else source))
@@ -175,6 +205,93 @@ class AdaptiveTrustStore:
             self._prune()
         if self.enable_compression and self._n_added % self.compress_every == 0:
             self._compress()
+
+    # ---- learned utility (ATMC v4): which KIND of note actually helps, and which notes within a kind ----
+    def _kind_rate(self, kind: str) -> float:
+        w, n = self.kind_stats.get(kind, (0, 0))
+        return (w + 1) / (n + 2)
+
+    def utility(self, m) -> float:
+        from consolidate import note_kind
+        shown, wins = getattr(m, "u_shown", 0), getattr(m, "u_wins", 0)
+        return (wins + 2 * self._kind_rate(note_kind(m.text))) / (shown + 2)
+
+    def record_outcome(self, shown_notes, passed: bool) -> None:
+        """Credit EVERY note that was in the prompt with the outcome of the answer it was shown for (no citation needed)."""
+        from consolidate import note_kind
+        for m in shown_notes:
+            m.u_shown = getattr(m, "u_shown", 0) + 1
+            m.u_wins = getattr(m, "u_wins", 0) + int(passed)
+            ks = self.kind_stats.setdefault(note_kind(m.text), [0, 0])
+            ks[0] += int(passed)
+            ks[1] += 1
+
+    def retrieve_for_repair(self, query_embedding, signatures, k: int = 3):
+        """Notes for the retry: ranked like retrieve(), plus a bonus for notes about the same kind of failure, so a rule seen in one
+        function reaches a differently-worded one."""
+        from consolidate import note_signatures
+        self.last_explanations, self.last_filtered = [], 0
+        if not self.items:
+            return []
+        sims = cosine_similarity([query_embedding], [m.embedding for m in self.items])[0]
+        scores = []
+        for m, sim in zip(self.items, sims):
+            if not _allowed(m.text, self.show_kinds) or (self.enable_trust and m.trust < self.t_min):
+                scores.append(-1e9); continue
+            bonus = 0.3 if signatures and (note_signatures(m.text) & set(signatures)) else 0.0
+            scores.append(float(sim) * (0.5 + self.utility(m)) + bonus)
+        order = np.argsort(-np.array(scores))[:k]
+        chosen = [self.items[i] for i in order if scores[i] > -1e8]
+        for m in chosen:
+            m.hits += 1
+        return chosen
+
+    def mark_stale(self, note, radius: float = 0.75, penalty: float = 0.35) -> int:
+        """A stored solution was PROVEN wrong by the current checker (a rule changed). Its trust drops to zero, and every older note
+        about similar tasks (cosine >= radius) loses `penalty` of trust at once, so the whole obsolete neighbourhood falls below the
+        trust gate together instead of one note per failure. Notes created after the stale one are left alone (they may be new-rule)."""
+        note.trust, note.stale = 0.0, True
+        ref = np.asarray(note.embedding, dtype=float)
+        ref = ref / (np.linalg.norm(ref) or 1.0)
+        hit = 0
+        for m in self.items:
+            if m is note or m.pinned or m.created_at_step > note.created_at_step:
+                continue
+            e = np.asarray(m.embedding, dtype=float)
+            if float(ref @ e / (np.linalg.norm(e) or 1.0)) >= radius:
+                m.trust = max(0.0, m.trust - penalty)
+                hit += 1
+        self.n_stale_marked = getattr(self, "n_stale_marked", 0) + 1
+        self.n_stale_propagated = getattr(self, "n_stale_propagated", 0) + hit
+        return hit
+
+    def _fold_into_card(self, text: str, embedding, trust: float) -> bool:
+        """Merge a new failure-evidence note with the most similar earlier evidence note or rule card (cosine above the
+        threshold). Returns True when it was merged, False when it should be stored as a note of its own."""
+        from consolidate import build_card, is_evidence_note
+        if not is_evidence_note(text):
+            return False
+        cand = [(i, m) for i, m in enumerate(self.items) if not m.pinned and not m.is_poison and is_evidence_note(m.text)
+                or (not m.pinned and m.text.startswith("Rule evidence from"))]
+        if not cand:
+            return False
+        sims = cosine_similarity([embedding], [m.embedding for _, m in cand])[0]
+        k = int(np.argmax(sims))
+        if sims[k] < self.evidence_threshold:
+            return False
+        i, m = cand[k]
+        members = getattr(m, "n_members", 1)
+        w = members / (members + 1)
+        merged_emb = np.asarray(m.embedding) * w + np.asarray(embedding) * (1 - w)
+        merged_emb = merged_emb / (np.linalg.norm(merged_emb) or 1.0)
+        card = MemoryItem(text=build_card([m.text, text], self.evidence_max_lines), embedding=merged_emb,
+                          trust=max(m.trust, trust), hits=m.hits, created_at_step=self._step, correct=False,
+                          uid=self._new_uid(), source="rule_card", successes=m.successes, failures=m.failures,
+                          version=m.version + 1)
+        card.n_members = members + 1
+        self.items[i] = card
+        self.n_cards_built += 1
+        return True
 
     def _prune(self):
         kept = []
@@ -244,6 +361,10 @@ class AdaptiveTrustStore:
         sims = cosine_similarity([query_embedding], embs)[0]
         scores, detail = [], []
         for m, sim in zip(self.items, sims):
+            if not _allowed(m.text, self.show_kinds):
+                scores.append(-1e9)  # abstain from this kind of note
+                detail.append(None)
+                continue
             if self.enable_trust and m.trust < self.t_min:
                 scores.append(-1e9)  # trust-based filtering
                 detail.append(None)
@@ -253,7 +374,11 @@ class AdaptiveTrustStore:
                 scores.append(-1e9)  # relevance floor
                 detail.append(None)
                 continue
-            I = importance(sim, m.hits)
+            if self.utility_rank:
+                scores.append(float(sim) * (0.5 + self.utility(m)))
+                detail.append({"similarity": round(float(sim), 3), "utility": round(self.utility(m), 3)})
+                continue
+            I = importance(sim, m.hits if self.hit_boost else 0)
             if self.enable_forgetting:
                 dt = max(self._step - m.created_at_step, 0)
                 F = retention_factor(m.trust, I, dt, **self.decay_kwargs)
