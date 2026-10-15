@@ -3,6 +3,7 @@
 # so any experiment can be reproduced from its own output file.
 
 model:
+  provider: gemini          # gemini | ollama (local open-weight model; see docs/LOCAL_MODEL.md)
   name: gemini-3.5-flash-lite
   temperature: 0.0            # README 4.2: deterministic reasoning where supported
   max_retries: 4
@@ -16,6 +17,8 @@ embedding:
 
 retrieval:
   top_k: 3
+  show_kinds: null            # abstention by kind: e.g. [example, solved] shows only verified solutions (null = every kind)
+  stale_radius: 0.75          # cosine within which older notes are demoted together when a stored solution is proven stale
   min_similarity: 0.0         # relevance floor (cosine); 0 = off. Notes below it are never injected.
 
 trust:
@@ -40,6 +43,9 @@ compression:
   every: 8                    # additions between compression passes
   batch_size: 3               # memories merged into one summary
   min_age_steps: 5            # only memories at least this old are candidates
+  evidence_merge: false       # fold similar failure-evidence notes into one 'rule card' (pilot/consolidate.py)
+  evidence_threshold: 0.75    # task-embedding cosine above which two failure notes count as the same kind of problem
+  evidence_max_lines: 6       # checker results kept on one card (newest)
 
 pillars:                      # ablation switches (Importance is never switched off)
   trust: true
@@ -59,6 +65,11 @@ agent:
   use_reflection: false       # LLM-written lesson after a failure (1 extra call per failure)
   curriculum: random          # fixed | random | weakness (practise where past failures cluster)
   curriculum_explore: 0.2     # chance of a random pick under 'weakness'
+  evidence_note_trust: false  # a failure note that only states checker-verified facts (coding.note_style: evidence) enters
+                              # memory with the trust of a verified note, not the lower trust of a failed attempt
+  credit: cited               # cited | all | asymmetric. Who gets trust credit after an outcome: only notes the model
+                              # reported using (cited); every retrieved note (all = the MemRL-style rule); or asymmetric
+                              # (reward only cited notes on success, blame every retrieved note on failure)
 
 strategy:                     # chat assistant: learns which way of solving works for each problem type
   enabled: true
@@ -74,6 +85,8 @@ autoverify:                   # chat assistant, tasks given without tests
 coding:
   datasets: [humaneval, mbpp]   # pool code tasks are sampled from
   timeout_s: 10               # wall-clock limit per test run in the sandbox
+  note_style: full            # full | evidence. 'evidence': a failed attempt is stored as the checker's expected-vs-got
+                              # (with types), without the wrong code, instead of the code plus the error text
 
 app:
   n_sample_tasks: 20          # size of the fixed question pool in the side-by-side demo

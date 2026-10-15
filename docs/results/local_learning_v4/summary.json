@@ -1,0 +1,27 @@
+{
+ "static_rm": {
+  "seeds": 3,
+  "pass_rate": 0.4636363636363636,
+  "first_half": 0.42424242424242425,
+  "second_half": 0.5030303030303029,
+  "rule_pass": 0.35555555555555557,
+  "control_pass": 1.0
+ },
+ "atmc_v4_simonly": {
+  "seeds": 3,
+  "pass_rate": 0.47878787878787876,
+  "first_half": 0.4606060606060606,
+  "second_half": 0.49696969696969695,
+  "rule_pass": 0.36666666666666664,
+  "control_pass": 1.0
+ },
+ "atmc_v4": {
+  "seeds": 3,
+  "pass_rate": 0.45454545454545453,
+  "first_half": 0.4,
+  "second_half": 0.509090909090909,
+  "rule_pass": 0.337037037037037,
+  "control_pass": 1.0
+ },
+ "paired": {}
+}

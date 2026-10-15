@@ -62,6 +62,8 @@ No component shows a significant benefit. The planner is the only lead: +6.7 poi
 
 "Implemented" is not "validated": the loop works and is reliable, but its extra components have not been shown to improve accuracy at this benchmark's ceiling. Still absent: a reusable skill library — memories are raw text, not consolidated procedures. The system is training-free: the LLM's weights never change; "self-evolving" here means the memory and curriculum change.
 
+> **Want to understand or rebuild this project from scratch?** Start with the developer guide: [`docs/guide/README.md`](docs/guide/README.md) (14 chapters, in build order, with checkpoints).
+
 ## Getting Started
 
 **Setup (from the repo root):**

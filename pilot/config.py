@@ -47,6 +47,10 @@ def _deep_update(base: dict, overrides: dict) -> dict:
 
 
 def _validate(d: dict) -> None:
+    if d.get('coding', {}).get('note_style', 'full') not in ('full', 'evidence'):
+        raise ValueError("coding.note_style must be 'full' or 'evidence'")
+    if d['model'].get('provider', 'gemini') not in ('gemini', 'ollama'):
+        raise ValueError(f"unknown model.provider {d['model']['provider']!r}; expected 'gemini' or 'ollama'")
     c = d["composite"]
     total = c["w_trust"] + c["w_importance"] + c["w_decay"]
     if abs(total - 1.0) > 1e-6:
@@ -61,6 +65,8 @@ def _validate(d: dict) -> None:
         raise ValueError(f"unknown agent.domain {d['agent']['domain']!r}")
     if d["agent"]["curriculum"] not in {"fixed", "random", "weakness"}:
         raise ValueError(f"unknown agent.curriculum {d['agent']['curriculum']!r}")
+    if d["agent"].get("credit", "cited") not in {"cited", "all", "asymmetric"}:
+        raise ValueError(f"unknown agent.credit {d['agent']['credit']!r}; expected 'cited', 'all' or 'asymmetric'")
     if not 0.0 <= d["agent"]["curriculum_explore"] <= 1.0:
         raise ValueError("agent.curriculum_explore must be in [0, 1]")
     if d["retrieval"]["top_k"] < 1:

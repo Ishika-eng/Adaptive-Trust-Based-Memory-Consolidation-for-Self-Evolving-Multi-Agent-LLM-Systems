@@ -6,8 +6,8 @@ from __future__ import annotations
 from stores import AdaptiveTrustStore, NoMemoryStore, ReflexionStyleStore, StaticMemoryStore
 
 
-def build_static(min_similarity: float = 0.0) -> StaticMemoryStore:
-    return StaticMemoryStore(min_similarity=min_similarity)
+def build_static(min_similarity: float = 0.0, show_kinds=None) -> StaticMemoryStore:
+    return StaticMemoryStore(min_similarity=min_similarity, show_kinds=show_kinds)
 
 
 def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_overrides) -> AdaptiveTrustStore:
@@ -39,6 +39,12 @@ def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_o
         summarize_fn=summarize_fn,
         label=label,
         min_similarity=cfg.retrieval.to_dict().get("min_similarity", 0.0),
+        hit_boost=cfg.retrieval.to_dict().get("hit_boost", True),
+        utility_rank=cfg.retrieval.to_dict().get("utility_rank", False),
+        show_kinds=cfg.retrieval.to_dict().get("show_kinds"),
+        evidence_merge=cfg.to_dict().get("compression", {}).get("evidence_merge", False),
+        evidence_threshold=cfg.to_dict().get("compression", {}).get("evidence_threshold", 0.75),
+        evidence_max_lines=cfg.to_dict().get("compression", {}).get("evidence_max_lines", 6),
         **pillars,
     )
 
@@ -51,7 +57,7 @@ def build_store(kind: str, cfg, embedder, summarize_fn, **pillar_overrides):
     if kind == "none":
         return NoMemoryStore()
     if kind == "static":
-        return build_static(cfg.retrieval.to_dict().get("min_similarity", 0.0))
+        return build_static(cfg.retrieval.to_dict().get("min_similarity", 0.0), cfg.retrieval.to_dict().get("show_kinds"))
     if kind == "reflexion":
         return ReflexionStyleStore(buffer_size=cfg.retrieval.top_k)
     if kind == "atmc":

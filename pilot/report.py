@@ -82,6 +82,11 @@ METRICS = [
     ("heldout_pass_rate", "held-out", "{:.3f}"),
     ("poison_exposure_after_warmup", "poison in ctx*", "{:.1f}"),
     ("poison_used", "poison used", "{:.1f}"),
+    ("cite_listed_frac", "cites notes", "{:.2f}"),
+    ("cite_missing_frac", "USED missing", "{:.2f}"),
+    ("trust_auc", "trust AUC", "{:.3f}"),
+    ("poison_trust_final", "poison trust", "{:.2f}"),
+    ("genuine_trust_final", "genuine trust", "{:.2f}"),
     ("final_memory_size", "memory", "{:.0f}"),
     ("tokens_in", "tokens in/task", "{:.0f}"),
     ("mean_retrieval_ms", "retrieval ms", "{:.2f}"),
@@ -143,5 +148,6 @@ if __name__ == "__main__":
     ap.add_argument("experiment")
     ap.add_argument("--domain", default="math")
     ap.add_argument("--ref", default=None)
+    ap.add_argument("--dir", default=None, help="results folder (default pilot/results/eval)")
     a = ap.parse_args()
-    print(render(build_report(a.experiment, a.domain, a.ref)))
+    print(render(build_report(a.experiment, a.domain, a.ref, Path(a.dir) if a.dir else None)))

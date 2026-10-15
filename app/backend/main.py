@@ -52,6 +52,10 @@ DOMAINS = {name: get_domain(name, CFG) for name in ("math", "code")}
 EMBEDDER = make_embedder(CFG, corpus=[t["question"] for t in DOMAINS["math"].load_tasks(CFG, 200, 0)])
 db.init_db()
 
+import learnlab  # noqa: E402  (Learning Lab: live no-memory vs memory comparison, model switch)
+learnlab.init(EMBEDDER, llm.summarize)
+app.include_router(learnlab.router)
+
 
 ISOLATION = sandbox.run_python("pass").isolation     # checked once, not on every poll
 

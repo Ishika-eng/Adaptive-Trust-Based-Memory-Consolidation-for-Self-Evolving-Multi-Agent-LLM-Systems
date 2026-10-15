@@ -7,13 +7,19 @@ import hashlib
 import os
 import re
 import sqlite3
+import json
 import threading
 import time
+import urllib.request
 
 from google import genai
 from google.genai import types
 
 MODEL_NAME = "gemini-3.5-flash-lite"
+PROVIDER = "gemini"       # gemini | ollama (a model running on this machine)
+BASE_URL = "http://localhost:11434"
+NUM_CTX = 8192
+SEED: int | None = 0
 TEMPERATURE: float | None = None  # None = the API's own default
 MAX_RETRIES = 4
 MIN_INTERVAL_S = 0.0   # minimum spacing between calls; keeps every caller under the rate limit
@@ -41,7 +47,11 @@ def usage_snapshot() -> dict:
 
 def configure(cfg) -> None:
     """Apply model settings from configs/default.yaml (model.*)."""
-    global MODEL_NAME, TEMPERATURE, MAX_RETRIES, MIN_INTERVAL_S
+    global MODEL_NAME, TEMPERATURE, MAX_RETRIES, MIN_INTERVAL_S, PROVIDER, BASE_URL, NUM_CTX
+    d = cfg.model.to_dict()
+    PROVIDER = d.get("provider", "gemini")
+    BASE_URL = d.get("base_url", BASE_URL)
+    NUM_CTX = d.get("num_ctx", NUM_CTX)
     MODEL_NAME = cfg.model.name
     TEMPERATURE = cfg.model.temperature
     MAX_RETRIES = cfg.model.max_retries
@@ -56,7 +66,7 @@ def configure(cfg) -> None:
 
 
 def _cache_key(prompt: str) -> str:
-    return hashlib.sha256(f"{MODEL_NAME}|{TEMPERATURE}|{prompt}".encode()).hexdigest()
+    return hashlib.sha256(f"{PROVIDER}|{MODEL_NAME}|{TEMPERATURE}|{prompt}".encode()).hexdigest()
 
 
 def _cache():
@@ -79,6 +89,17 @@ def _get_client():
     return _client
 
 
+def _ollama(prompt: str) -> tuple[str, int, int]:
+    """One non-streaming generation from a local Ollama server. Weights stay on this machine."""
+    body = {"model": MODEL_NAME, "prompt": prompt, "stream": False,
+            "options": {"temperature": TEMPERATURE or 0.0, "num_ctx": NUM_CTX, "seed": SEED}}
+    req = urllib.request.Request(f"{BASE_URL}/api/generate", json.dumps(body).encode(),
+                                 {"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=600) as r:
+        out = json.load(r)
+    return out.get("response", ""), out.get("prompt_eval_count", 0) or 0, out.get("eval_count", 0) or 0
+
+
 def complete(prompt: str) -> str:
     """One LLM call with exponential-backoff retries (rate limits, transient errors).
     Raises QuotaExhausted immediately on a daily-quota error instead of retrying."""
@@ -92,6 +113,26 @@ def complete(prompt: str) -> str:
             USAGE["prompt_tokens"] += hit[1]
             USAGE["output_tokens"] += hit[2]
             return hit[0]
+    if PROVIDER == "ollama":
+        last_err = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                text, tin, tout = _ollama(prompt)
+            except Exception as e:      # server not running / model not pulled / timeout
+                last_err = e
+                time.sleep(2 ** attempt)
+                continue
+            USAGE["calls"] += 1
+            USAGE["api_calls"] += 1
+            USAGE["prompt_tokens"] += tin
+            USAGE["output_tokens"] += tout
+            if CACHE_PATH is not None:
+                with _cache_lock:
+                    db = _cache()
+                    db.execute("INSERT OR REPLACE INTO r VALUES (?,?,?,?)", (_cache_key(prompt), text, tin, tout))
+                    db.commit()
+            return text
+        raise RuntimeError(f"Local model call failed ({MODEL_NAME} at {BASE_URL}). Is `ollama serve` running and the model pulled? {last_err}")
     client = _get_client()
     gen_config = types.GenerateContentConfig(temperature=TEMPERATURE) if TEMPERATURE is not None else None
     last_err = None
@@ -179,6 +220,23 @@ def extract_used_mask(text: str, n_memories: int) -> list[bool]:
     if not indices:
         return [True] * n_memories  # unparseable -> fall back, don't silently zero out
     return [i in indices for i in range(n_memories)]
+
+
+def citation_status(text: str, n_memories: int) -> str:
+    """How the model's USED line was read (mirrors `extract_used_mask`), so we can measure how reliable citations are:
+    'no_memories' | 'missing' (no USED line -> the parser credits every note) | 'unparseable' (same fallback) |
+    'none' (the model says it used nothing) | 'listed' (it named specific notes)."""
+    if n_memories == 0:
+        return "no_memories"
+    m = _USED_RE.search(text)
+    if not m:
+        return "missing"
+    body = m.group(1).strip().lower()
+    if body.startswith("none"):
+        return "none"
+    if any(0 <= int(tok) - 1 < n_memories for tok in re.findall(r"\d+", body)):
+        return "listed"
+    return "unparseable"
 
 
 def numbers_match(pred: str | None, gold: str) -> bool:

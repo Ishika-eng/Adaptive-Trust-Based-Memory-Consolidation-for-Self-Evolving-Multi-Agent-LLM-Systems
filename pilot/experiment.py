@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -34,6 +36,7 @@ import llm
 from agent import Agent, build_agent
 from config import ROOT, Config, load_config
 from domains import get_domain
+from domains.base import Verdict
 from embeddings import make_embedder
 from factory import build_store
 
@@ -46,6 +49,8 @@ class Condition:
     pillars: dict = field(default_factory=dict)  # enable_trust / enable_forgetting / enable_compression
     agent: dict = field(default_factory=dict)    # overrides for cfg.agent (planner, reflection, curriculum)
     retrieval: dict = field(default_factory=dict)  # overrides for cfg.retrieval (e.g. min_similarity)
+    composite: dict = field(default_factory=dict)  # overrides for cfg.composite (ranking weights; must still sum to 1)
+    compression: dict = field(default_factory=dict)  # overrides for cfg.compression (e.g. evidence_merge)
 
 
 @dataclass
@@ -54,6 +59,11 @@ class Preset:
     poison: bool = False
     heldout: int = 0
     pool_factor: int = 1       # train pool = n * pool_factor (bigger when the agent chooses its own tasks)
+    poison_label: str = "failed"   # how planted notes are recorded: "failed" (labelled INCORRECT) or "correct" (a wrong
+                                   # solution recorded as a success -- the harder, realistic false-positive case)
+    repeats: int = 1           # passes over the same tasks, so planted notes are retrieved more than once
+    verifier_noise: float = 0.0   # P(a wrong answer is recorded as correct): a fooled auto-verifier or a mistaken thumbs-up.
+                                  # Reported pass rates still use the TRUE result; only what the agent LEARNS from is noisy.
 
 
 PRESETS: dict[str, Preset] = {
@@ -75,6 +85,154 @@ PRESETS: dict[str, Preset] = {
         "static_minsim": Condition("static", retrieval={"min_similarity": 0.75}),
         "atmc_minsim": Condition("atmc", retrieval={"min_similarity": 0.75}),
     }, poison=True),
+    # Experiment 1 (docs/experiments/EXP1_credit_assignment.md): does crediting only the notes the model cited
+    # separate good notes from bad ones better than crediting every retrieved note (the MemRL-style rule)?
+    "credit": Preset({
+        "credit_cited": Condition("atmc", agent={"credit": "cited"}),
+        "credit_all": Condition("atmc", agent={"credit": "all"}),
+        "credit_asymmetric": Condition("atmc", agent={"credit": "asymmetric"}),    # exploratory, not pre-registered
+    }, poison=True, poison_label="correct", repeats=3),
+    # Experiment 1, version 2 (amendment 1): forgetting and merging OFF, so every planted note keeps its identity to the
+    # end and the trust metrics are well defined. Version 1 (above) is kept: merging made its metrics ill-posed.
+    "credit_isolated": Preset({
+        "iso_cited": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, {"credit": "cited"}),
+        "iso_all": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, {"credit": "all"}),
+        "iso_asymmetric": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, {"credit": "asymmetric"}),
+    }, poison=True, poison_label="correct", repeats=3),
+    # Local-model learning experiment (docs/experiments/LOCAL_MODEL_PILOT.md). Run with --dataset conventions
+    # --provider ollama --note-style evidence. Does the agent get better at hidden project conventions as it works?
+    "learning": Preset({
+        "no_memory": Condition("none"), "static": Condition("static"),
+        "atmc_no_trust": Condition("atmc", {"enable_trust": False}),
+        "atmc_no_merge": Condition("atmc", {"enable_compression": False}),
+        "atmc": Condition("atmc"),
+    }),
+    # same, but 25% of wrong answers are recorded as correct: can the agent still learn safely when its checker is fooled?
+    "learning_noisy": Preset({
+        "no_memory": Condition("none"), "static": Condition("static"),
+        "atmc_no_trust": Condition("atmc", {"enable_trust": False}),
+        "atmc_no_merge": Condition("atmc", {"enable_compression": False}),
+        "atmc": Condition("atmc"),
+    }, verifier_noise=0.25),
+    # EXPLORATORY, post hoc: why does full ATMC trail static memory in "learning"? Tested by changing how notes are ranked
+    # and whether they decay. Any setting chosen from this must be re-tested on families it was not tuned on.
+    "learning_diag": Preset({
+        "atmc_simrank": Condition("atmc", composite={"w_trust": 0.0, "w_importance": 1.0, "w_decay": 0.0}),
+        "atmc_noforget": Condition("atmc", {"enable_forgetting": False}),
+        "atmc_simrank_noforget": Condition("atmc", {"enable_forgetting": False}, composite={"w_trust": 0.0, "w_importance": 1.0, "w_decay": 0.0}),
+    }),
+    # EXPLORATORY, round 2: is the retrieval-frequency boost (importance = sim * (1 + log(1 + hits))) what hurts?
+    # atmc_pure has every pillar and the boost off, so it should behave like static memory (a pipeline sanity check).
+    "learning_diag2": Preset({
+        "atmc_pure": Condition("atmc", {"enable_trust": False, "enable_forgetting": False, "enable_compression": False},
+                               retrieval={"hit_boost": False}),
+        "atmc_trust_only": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, retrieval={"hit_boost": False}),
+        "atmc_nohits": Condition("atmc", retrieval={"hit_boost": False}),
+    }),
+    # EXPLORATORY, round 3: does letting verified-evidence failure notes enter at normal trust fix ATMC? (hypothesis from
+    # round 2: trust-weighted ranking pushes failure notes -- the ones that carry the rule -- below success notes)
+    "learning_fix": Preset({
+        "atmc_ev": Condition("atmc", agent={"evidence_note_trust": True}),
+        "atmc_ev_nohits": Condition("atmc", agent={"evidence_note_trust": True}, retrieval={"hit_boost": False}),
+    }),
+    # Ablation ladder (not tuning): add ATMC's pillars to plain memory one at a time, with verified-evidence trust and no hit
+    # boost. Rung 3 (all pillars) is "atmc_ev_nohits" in learning_fix. static = no pillars at all.
+    "learning_ladder": Preset({
+        "ladder_trust": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                  agent={"evidence_note_trust": True}, retrieval={"hit_boost": False}),
+        "ladder_trust_forget": Condition("atmc", {"enable_compression": False},
+                                         agent={"evidence_note_trust": True}, retrieval={"hit_boost": False}),
+    }),
+    # PRE-REGISTERED safety test (rule fixed before the runs): does trust-only ATMC beat static memory by >= 3 points, 95% CI
+    # above zero, when the checker records wrong answers as correct? static vs ladder_trust at 25% and 50% noise.
+    "safety_25": Preset({
+        "static": Condition("static"),
+        "ladder_trust": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                  agent={"evidence_note_trust": True}, retrieval={"hit_boost": False}),
+    }, verifier_noise=0.25),
+    "safety_50": Preset({
+        "static": Condition("static"),
+        "ladder_trust": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                  agent={"evidence_note_trust": True}, retrieval={"hit_boost": False}),
+    }, verifier_noise=0.50),
+    # Step 1 (planned before running): Qwen cites a note in only ~12 pct of steps, so the 'cited' credit rule gives trust
+    # almost no signal. 'asymmetric' blames every retrieved note after a failure, with no citation needed. Success rule, fixed
+    # in advance: >= +3 points over static memory (95 pct CI above 0) at 25 and 50 pct noise, and no worse than -3 when clean.
+    "asym_clean": Preset({"asym_trust": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                 agent={"evidence_note_trust": True, "credit": "asymmetric"}, retrieval={"hit_boost": False})}),
+    "asym_25": Preset({"asym_trust": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                 agent={"evidence_note_trust": True, "credit": "asymmetric"}, retrieval={"hit_boost": False})}, verifier_noise=0.25),
+    "asym_50": Preset({"asym_trust": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                 agent={"evidence_note_trust": True, "credit": "asymmetric"}, retrieval={"hit_boost": False})}, verifier_noise=0.50),
+    # ATMC v2 (planned before running): trust-only ATMC + evidence consolidation into rule cards. threshold 0.75 was chosen from
+    # cluster purity of the task embeddings alone (83 pct same-family), not from any pass rate. Compare against static memory.
+    "learning_v2": Preset({
+        "atmc_v2": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, agent={"evidence_note_trust": True},
+                             retrieval={"hit_boost": False}, compression={"evidence_merge": True}),
+        "atmc_v2_notrust": Condition("atmc", {"enable_trust": False, "enable_forgetting": False, "enable_compression": False},
+                                     agent={"evidence_note_trust": True}, retrieval={"hit_boost": False}, compression={"evidence_merge": True}),
+    }),
+    # ATMC v3 = verified playbook (design from ACE / ExpeL / Voyager / Dynamic Cheatsheet, see docs/experiments/ATMC_V3.md).
+    # Written before the run: atmc_v3 should beat static_repair by >= 3 points on first-attempt pass rate (95 pct CI above 0).
+    "learning_v3": Preset({
+        "static_repair": Condition("static", agent={"repair": True}),
+        "atmc_v3_nocards": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                     agent={"evidence_note_trust": True, "repair": True}, retrieval={"hit_boost": False}),
+        "atmc_v3": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True}, retrieval={"hit_boost": False},
+                             compression={"evidence_merge": True}),
+    }),
+    # ATMC v4 (docs/experiments/ATMC_V4.md, prediction fixed before running): learned utility ranking + failure-signature retrieval
+    # for the retry + a retry that uses memory. static_rm is the control (plain memory with the same retry-with-memory).
+    "learning_v4": Preset({
+        "static_rm": Condition("static", agent={"repair": True, "repair_with_memory": True}),
+        "atmc_v4_simonly": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                                     agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True},
+                                     retrieval={"hit_boost": False}, compression={"evidence_merge": True}),
+        "atmc_v4": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True},
+                             retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True}),
+    }),
+    # Rule-change (drift) stream, docs/experiments/DRIFT.md: 29 questions asked under an old rule, then again under the opposite rule.
+    # Run with --dataset conventions_drift --n 58.
+    "drift": Preset({
+        "no_memory": Condition("none"),
+        "static_rm": Condition("static", agent={"repair": True, "repair_with_memory": True}),
+        "atmc_v4": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True},
+                             retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True}),
+    }),
+    # Abstention (docs/experiments/DRIFT.md, part 2): only validated notes are ever shown. static_val is the plain-memory control.
+    "learning_v5": Preset({
+        "static_val": Condition("static", agent={"repair": True, "repair_with_memory": True},
+                                retrieval={"show_kinds": ["example", "solved"]}),
+        "atmc_v5": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True},
+                             retrieval={"hit_boost": False, "utility_rank": True, "show_kinds": ["example", "solved", "card"]},
+                             compression={"evidence_merge": True}),
+    }),
+    # Re-verification detector (docs/experiments/DRIFT.md part 3, rules fixed before running).
+    # static_rv: plain memory that drops the one note proven stale. atmc_v6: ATMC v4 + proven-stale marking that demotes the whole older
+    # neighbourhood. Dev stream = --dataset conventions_drift --n 58; final, run once = drift2_final with --dataset conventions_drift2 --n 40.
+    "drift_v6": Preset({"static_rv": Condition("static", agent={"repair": True, "repair_with_memory": True, "reverify_stale": True}), "atmc_v6": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True, "reverify_stale": True},
+                             retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True})}),
+    "drift2_final": Preset({
+        "no_memory": Condition("none"),
+        "static_rm": Condition("static", agent={"repair": True, "repair_with_memory": True}),
+        "atmc_v4": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True},
+                             retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True}),
+        "static_rv": Condition("static", agent={"repair": True, "repair_with_memory": True, "reverify_stale": True}), "atmc_v6": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True, "reverify_stale": True},
+                             retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True}),
+    }),
     "agent": Preset({
         "atmc": Condition("atmc"),
         "atmc_planner": Condition("atmc", agent={"use_planner": True}),
@@ -86,12 +244,71 @@ PRESETS: dict[str, Preset] = {
 }
 
 
+class NoisyChecker:
+    """Wraps a domain so that, with probability p, a WRONG answer is reported as correct (a false success). The true
+    result of the latest check is kept in `last_true_correct` so the experiment can still score honestly."""
+
+    def __init__(self, domain, p: float, seed: int):
+        self._d, self._p, self._rng = domain, p, random.Random(f"noise-{seed}")
+        self.last_true_correct = None
+
+    def __getattr__(self, name):
+        return getattr(self._d, name)
+
+    def check(self, task, answer):
+        v = self._d.check(task, answer)
+        self.last_true_correct = v.correct
+        if not v.correct and v.verified and v.stage in ("wrong_answer", "runtime_error") and self._rng.random() < self._p:
+            return Verdict(True, "ok", "false success (simulated checker error)")
+        return v
+
+
 def condition_cfg(cfg, cond: Condition) -> Config:
     """Experiments follow the pool in a fixed order unless the condition says otherwise."""
     d = cfg.to_dict()
     d["agent"] = {**d["agent"], "curriculum": "fixed", **cond.agent}
     d["retrieval"] = {**d["retrieval"], **cond.retrieval}
+    d["composite"] = {**d["composite"], **cond.composite}
+    d["compression"] = {**d["compression"], **cond.compression}
     return Config(d)
+
+
+_OUTCOME_LINE = re.compile(r"^Outcome:.*$", re.MULTILINE)
+
+
+def relabel_as_correct(text: str) -> str:
+    """A planted note as a *false success*: same wrong solution, but its outcome line now says CORRECT."""
+    return _OUTCOME_LINE.sub("Outcome: CORRECT", text)
+
+
+def trust_auc(genuine: list[float], poison: list[float]) -> float | None:
+    """P(a random genuine note is trusted more than a random planted one); ties count half. 0.5 = no separation."""
+    if not genuine or not poison:
+        return None
+    wins = sum((g > p) + 0.5 * (g == p) for g in genuine for p in poison)
+    return wins / (len(genuine) * len(poison))
+
+
+def _frac(steps: list[dict], status: str) -> float:
+    """Share of steps (that had retrieved notes) whose USED line was read as `status`."""
+    with_notes = [x for x in steps if x.get("cite_status") not in (None, "", "no_memories")]
+    return sum(x["cite_status"] == status for x in with_notes) / len(with_notes) if with_notes else 0.0
+
+
+def trust_metrics(store) -> dict:
+    """How well did the store's trust scores separate genuine notes from planted ones at the end of the run?"""
+    items = getattr(store, "items", [])
+    gate = getattr(store, "t_min", 0.0)
+    genuine = [m.trust for m in items if not m.is_poison and m.correct is True]
+    poison = [m.trust for m in items if m.is_poison]
+    return {
+        "trust_auc": trust_auc(genuine, poison),
+        "genuine_trust_final": sum(genuine) / len(genuine) if genuine else None,
+        "poison_trust_final": sum(poison) / len(poison) if poison else None,
+        "genuine_blocked_frac": sum(t < gate for t in genuine) / len(genuine) if genuine else None,
+        "poison_blocked_frac": sum(t < gate for t in poison) / len(poison) if poison else None,
+        "n_poison_remaining": len(poison),
+    }
 
 
 def evaluate_frozen(agent: Agent, task: dict) -> bool:
@@ -122,19 +339,34 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
     store = build_store(cond.kind, ccfg, embedder, llm.summarize, **cond.pillars)
     n_poison = 0
     if preset.poison:
+        as_correct = preset.poison_label == "correct"
         for text, emb in domain.poison_specs(sequence, embedder, cfg.evaluation.poison_every):
-            store.add(text, emb, correct=False, is_poison=True)
+            store.add(relabel_as_correct(text) if as_correct else text, emb, correct=as_correct, is_poison=True)
             n_poison += 1
 
+    if preset.verifier_noise:
+        domain = NoisyChecker(domain, preset.verifier_noise, seed)
     agent = build_agent(ccfg, store, embedder, domain, train_pool, seed)
     if ccfg.agent.curriculum == "fixed":
         agent.pool = sequence                      # identical sequence for every fixed-order condition
     usage0, t0 = llm.usage_snapshot(), time.time()
     steps = []
-    for i in range(n):
-        r = agent.step()
-        steps.append(r.to_log())
-        print(f"  [{cname} s{seed}] {i+1}/{n} {'PASS' if r.correct else 'fail'} ({r.verdict.stage}) "
+    if preset.repeats > 1:                         # same tasks again and again: pass-major order, explicit tasks
+        schedule = sequence * preset.repeats
+    else:
+        schedule = [None] * n                      # let the agent's own curriculum choose
+    n_steps = len(schedule)
+    for i, task in enumerate(schedule):
+        r = agent.step(task)
+        log = r.to_log()
+        if preset.verifier_noise:                  # score on the truth; keep what the agent was told
+            log["recorded_correct"] = log["correct"]
+            log["correct"] = bool(domain.last_true_correct)
+        poison_now = [m.trust for m in getattr(store, "items", []) if m.is_poison]
+        log["poison_trust_mean"] = round(sum(poison_now) / len(poison_now), 4) if poison_now else None
+        steps.append(log)
+        r_ok = log["correct"]
+        print(f"  [{cname} s{seed}] {i+1}/{n_steps} {'PASS' if r_ok else 'fail'} ({r.verdict.stage}) "
               f"poison_in_ctx={r.n_poison_retrieved} mem={r.memory_size}", flush=True)
 
     held_correct, held_detail = None, []
@@ -146,10 +378,11 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
     usage1 = llm.usage_snapshot()
     warm = cfg.retrieval.top_k          # first tasks before any genuine note can exist (cold start)
     ok = [s["correct"] for s in steps]
+    N = len(steps)
     summary = {
-        "pass_rate": sum(ok) / n,
-        "pass_rate_first_half": sum(ok[: n // 2]) / max(n // 2, 1),
-        "pass_rate_second_half": sum(ok[n // 2:]) / max(n - n // 2, 1),
+        "pass_rate": sum(ok) / N,
+        "pass_rate_first_half": sum(ok[: N // 2]) / max(N // 2, 1),
+        "pass_rate_second_half": sum(ok[N // 2:]) / max(N - N // 2, 1),
         "heldout_pass_rate": held_correct,
         "poison_exposure": sum(s["n_poison_retrieved"] for s in steps),
         "poison_exposure_after_warmup": sum(s["n_poison_retrieved"] for s in steps[warm:]),
@@ -163,12 +396,20 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
         "cache_hits": usage1["cache_hits"] - usage0["cache_hits"],
         "tokens_in": usage1["prompt_tokens"] - usage0["prompt_tokens"],
         "tokens_out": usage1["output_tokens"] - usage0["output_tokens"],
-        "mean_retrieval_ms": sum(s["retrieval_ms"] for s in steps) / n,
+        "mean_retrieval_ms": sum(s["retrieval_ms"] for s in steps) / N,
+        "n_steps": N,
+        "repair_attempted": sum(s.get("repair_attempted", False) for s in steps),
+        "repair_passed": sum(s.get("repair_passed", False) for s in steps),
+        "pass_rate_with_retry": (sum(ok) + sum(s.get("repair_passed", False) for s in steps)) / N,
+        "cite_listed_frac": _frac(steps, "listed"), "cite_none_frac": _frac(steps, "none"),
+        "cite_missing_frac": _frac(steps, "missing") + _frac(steps, "unparseable"),
+        **trust_metrics(store),
         "wall_seconds": round(time.time() - t0, 1),
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({
-        "experiment": exp, "domain": domain.name, "condition": cname, "seed": seed, "n": n, "heldout": heldout,
+        "experiment": exp, "domain": domain.name, "condition": cname, "seed": seed, "n": N, "heldout": heldout,
+        "poison_label": preset.poison_label, "repeats": preset.repeats,
         "embedder": embedder.name, "condition_spec": {"kind": cond.kind, "pillars": cond.pillars, "agent": cond.agent,
                                             "retrieval": cond.retrieval},
         "config": ccfg.to_dict(), "summary": summary, "steps": steps, "heldout_steps": held_detail,
@@ -183,7 +424,9 @@ def estimate_calls(preset: Preset, n: int, heldout: int, seeds: int, only) -> in
             continue
         per_task = 1 + (1 if c.agent.get("use_planner") else 0) + (0.3 if c.agent.get("use_reflection") else 0)
         compress = (n + 14) // 8 if c.kind == "atmc" and c.pillars.get("enable_compression", True) else 0
-        total += seeds * (n * per_task + compress + heldout * (2 if c.agent.get("use_planner") else 1))
+        steps = n * preset.repeats
+        compress = (steps + 14) // 8 if c.kind == "atmc" and c.pillars.get("enable_compression", True) else 0
+        total += seeds * (steps * per_task + compress + heldout * (2 if c.agent.get("use_planner") else 1))
     return int(total)
 
 
@@ -197,15 +440,32 @@ def main():
     ap.add_argument("--only", default=None, help="comma-separated condition names")
     ap.add_argument("--embedding", default=None, help="fastembed | gemini | tfidf")
     ap.add_argument("--force", action="store_true", help="re-run even if a result file exists")
+    ap.add_argument("--out", default=None, help="results folder (default pilot/results/eval); use a scratch folder for smoke tests")
+    ap.add_argument("--note-style", choices=["full", "evidence"], default=None, help="how failed attempts are stored (coding.note_style)")
+    ap.add_argument("--dataset", default=None, help="coding task pool, comma-separated: humaneval,mbpp,conventions")
+    ap.add_argument("--provider", choices=["gemini", "ollama"], default=None, help="model provider (default: from the config)")
+    ap.add_argument("--model", default=None, help="model name for the provider, e.g. qwen2.5-coder:7b-instruct")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
+    if args.out:
+        global OUT_DIR
+        OUT_DIR = Path(args.out).resolve()
 
     if args.list or not args.preset:
         for name, p in PRESETS.items():
             print(f"{name:18s} conditions: {', '.join(p.conditions)}  poison={p.poison} heldout={p.heldout}")
         return
 
-    overrides = {"embedding": {"backend": args.embedding}} if args.embedding else None
+    overrides = {"embedding": {"backend": args.embedding}} if args.embedding else {}
+    if args.provider or args.model:
+        overrides["model"] = {k: v for k, v in (("provider", args.provider), ("name", args.model)) if v}
+        if args.provider == "ollama":
+            overrides["model"]["request_interval_s"] = 0.0     # no rate limit on a local model
+    if args.note_style:
+        overrides.setdefault("coding", {})["note_style"] = args.note_style
+    if args.dataset:
+        overrides.setdefault("coding", {})["datasets"] = args.dataset.split(",")
+    overrides = overrides or None
     cfg = load_config(overrides=overrides)
     llm.configure(cfg)
     preset = PRESETS[args.preset]
