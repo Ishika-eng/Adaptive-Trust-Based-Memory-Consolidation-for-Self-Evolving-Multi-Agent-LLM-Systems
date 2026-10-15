@@ -40,3 +40,18 @@ def test_the_question_does_not_give_away_the_rule():
         q = r["question"].lower()
         for banned in ("paise", "zero-pad", "dd-mm-yyyy", "lower case", "lowercase", "must not modify", "ascending", "(true, ", "[level]"):
             assert banned not in q, (r["id"], banned)
+
+
+def test_heldout_file_matches_the_builder_and_has_six_families_of_ten():
+    saved = [json.loads(l) for l in open(ROOT / "pilot" / "data" / "conventions_heldout.jsonl")]
+    assert saved == json.loads(json.dumps(bc.build(bc.HELDOUT, "conventions_heldout")))
+    fams = Counter(r["family"] for r in saved)
+    assert len(saved) == 60 and len(fams) == 6 and all(n == 10 for n in fams.values())
+    assert set(fams) == {"one_based", "yes_no", "rates_fraction", "ordered_pairs", "inclusive_ranges", "phone_91"}
+
+
+def test_heldout_questions_do_not_give_away_their_rules():
+    for r in (json.loads(l) for l in open(ROOT / "pilot" / "data" / "conventions_heldout.jsonl")):
+        q = r["question"].lower()
+        for banned in ("tuple", "dict", "inclusive", "country", "91", "12-digit", "1-based", "'yes'", "fraction", "percent"):
+            assert banned not in q, (r["id"], banned)
