@@ -65,6 +65,33 @@ class Domain:
         """The memory note stored after an attempt."""
         raise NotImplementedError
 
+    def note_claim_verified(self, verdict: Verdict) -> bool:
+        """True when the note stored for this attempt states only what the checker verified (no unverified code or
+        model-written explanation), so it deserves the trust of a verified note even after a failure."""
+        return False
+
+    def note_solution(self, text: str) -> str | None:
+        """The code stored inside a memory note (a verified worked example or a solved task), or None."""
+        return None
+
+    def reverify(self, task: dict, code: str) -> bool | None:
+        """Does this stored solution still pass the CURRENT checker for this task? True / False, or None when it is not about this
+        task (it does not define the function the task asks for), so it cannot be judged."""
+        return None
+
+    def failure_signature(self, verdict: Verdict) -> set:
+        """What KIND of failure this was, independent of the task's wording (used to find notes about the same kind)."""
+        return set()
+
+    def repair_prompt(self, task: dict, verdict: Verdict, memories: list[str] | None = None) -> str | None:
+        """A fresh prompt for one more attempt at a task that just failed, given only the checker's evidence (never the
+        failed code: small models anchor on it). None = this domain does not support repair."""
+        return None
+
+    def worked_example(self, task: dict, answer, verdict: Verdict) -> str | None:
+        """A memory note holding a solution that passed the checker after an earlier failure."""
+        return None
+
     def poison_text(self, task: dict) -> str | None:
         """A plausible but wrong note for this task, or None if one can't be built."""
         raise NotImplementedError
