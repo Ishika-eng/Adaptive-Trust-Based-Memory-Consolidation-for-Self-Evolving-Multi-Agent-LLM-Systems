@@ -42,3 +42,17 @@ New task orders of the same 110 questions are not new data: every design choice 
 questions are the only set no design decision has seen. Therefore **on the 60 held-out questions alone, the frozen candidate's point estimate against `static_rm` must be
 non-negative (>= 0 points) for EITHER bar to count as passed.** If the held-out set disagrees with the 110-question runs, the outcome is reported as "not confirmed", together
 with the size of the gap between the two sets (a gap is itself evidence of overfitting to the 110 questions).
+
+## RESULT, Phase 1 (2026-10-15; design seeds 7/11/19; 15 runs; 330 paired questions)
+| | first-attempt | second half | after retry | memory at end | per seed |
+|---|---|---|---|---|---|
+| plain memory (static_rm) | 44.5% | 52.1% | 70.3% | 138 | 42.7 / 45.5 / 45.5 |
+| v7 rule memory | 42.7% | 48.5% | 66.1% | 53 | 39.1 / 41.8 / 47.3 |
+| rm_short | 39.1% | 43.6% | 69.1% | 51 | 35.5 / 40.9 / 40.9 |
+| rm_evidence_slots | 43.0% | 52.1% | 68.5% | 119 | 44.5 / 42.7 / 41.8 |
+| rm_k2 | 40.3% | 47.9% | 67.0% | 51 | 40.0 / 38.2 / 42.7 |
+Selection rule (fixed above): the best candidate is `rm_evidence_slots` at 43.0%, which beats v7 (42.7%) by **+0.3 points, below the required 1 point -> FAILS -> STOP.**
+**No candidate is frozen and Phase 2 (confirmation on new seeds and the 60 held-out questions) is NOT run.** Neither bar was therefore tested on confirmation data.
+Observations (not decisions): v7 against plain memory on these fresh seeds is -1.8 points (CI -6.1 to +2.4, p = 0.49) with 62% less memory, a smaller gap than the -4.2 on the original seeds
+(so part of that gap was seed noise). Every candidate is within the noise of v7 or worse; rm_short is significantly worse than plain memory (-5.5, p = 0.015).
+Any further use of v7 on the confirmation sets would be a post-hoc deviation from this pre-registration and would have to be declared as such (Amendment 2, written before running).
