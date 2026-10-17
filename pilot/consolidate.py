@@ -94,8 +94,57 @@ def detail_signature(detail: str) -> set:
     return sigs
 
 
+def pattern_line(checks: list[str]) -> str | None:
+    """The one-line pattern across checker results ("expected type int but the solution returned type float, 4 of 4")."""
+    kinds = Counter()
+    for check in checks:
+        m = _CHECK.search(check)
+        if m:
+            kinds[(m.group(2), m.group(4))] += 1
+    if not kinds:
+        return None
+    (want, got), k = kinds.most_common(1)[0]
+    n = sum(kinds.values())
+    if want != got:
+        return f"Pattern: in {k} of {n} failures the checker expected type {want} but the solution returned type {got}."
+    return f"Pattern: in {k} of {n} failures the type was right ({want}) but the value or format was not; match the expected values above exactly."
+
+
+_SOL_EX = re.compile(r"^Task: (.*?)\nVerified solution \(.*?\):\n(.*?)\nOutcome: CORRECT\s*$", re.DOTALL)
+_SOL_OK = re.compile(r"^Task: (.*?)\nSolution:\n(.*?)\nOutcome: CORRECT\s*$", re.DOTALL)
+
+
+def extract_solution(text: str):
+    """(task text, code) from a worked-example note or a solved-task note, else None."""
+    for pat in (_SOL_EX, _SOL_OK):
+        m = pat.match(text)
+        if m:
+            return m.group(1).strip(), m.group(2).strip("\n")
+    return None
+
+
+def render_slot(evidence: list, solutions: list, n_tasks: int) -> str:
+    """One rule slot as a single memory note: the checker's evidence, the pattern, and the latest verified solutions."""
+    lines = [f"Rule memory (from {n_tasks} earlier task{'s' if n_tasks != 1 else ''} of this kind):"]
+    if evidence:
+        lines.append("The project's checker rejected earlier attempts like this:")
+        for task, check in evidence:
+            lines += [f"- Task: {task[:110]}", f"  Check: {check}"]
+        pat = pattern_line([c for _, c in evidence])
+        if pat:
+            lines.append(pat)
+    if solutions:
+        lines.append("Verified solutions that passed the project's check (latest first):")
+        for task, code in reversed(solutions):
+            lines += [f"Task: {task[:90]}", code.strip()]
+    lines.append("Outcome: RULE")
+    return "\n".join(lines)
+
+
 def note_kind(text: str) -> str:
-    """What sort of memory a note is: a rule card, a verified worked example, bare failure evidence, or a solved task."""
+    """What sort of memory a note is: a rule slot, a rule card, a verified worked example, bare failure evidence, or a solved task."""
+    if text.startswith("Rule memory"):
+        return "rule"
     if text.startswith(CARD_HEAD):
         return "card"
     if "Verified solution (" in text:
