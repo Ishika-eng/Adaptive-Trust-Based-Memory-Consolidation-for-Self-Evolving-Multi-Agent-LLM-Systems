@@ -182,8 +182,12 @@ class Agent:
         radius = self.cfg.retrieval.to_dict().get("stale_radius", 0.75)
         marked = 0
         for m in list(self.store.items):
-            code = self.domain.note_solution(m.text)
-            if code and getattr(m, "stale", False) is False and self.domain.reverify(task, code) is False:
+            if getattr(m, "slot", None) is not None and hasattr(self.store, "solutions_of"):
+                codes = self.store.solutions_of(m)             # a rule slot holds several verified solutions
+            else:
+                one = self.domain.note_solution(m.text)
+                codes = [one] if one else []
+            if codes and getattr(m, "stale", False) is False and any(self.domain.reverify(task, c) is False for c in codes):
                 self.store.mark_stale(m, radius=radius)
                 marked += 1
         return marked
