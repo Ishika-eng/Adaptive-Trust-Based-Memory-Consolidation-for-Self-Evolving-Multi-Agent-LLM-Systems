@@ -18,6 +18,8 @@ verification). This project uses ATMC instead to avoid the collision.
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -40,13 +42,19 @@ class StaticMemoryStore:
 
     name = "static"
 
-    def __init__(self, min_similarity: float = 0.0, show_kinds=None):
+    def __init__(self, min_similarity: float = 0.0, show_kinds=None, last_write_wins: bool = False):
         self.items: list[MemoryItem] = []
         self.min_similarity = min_similarity     # 0 = always return the top-k, however dissimilar
         self.show_kinds = tuple(show_kinds) if show_kinds else None
+        self.last_write_wins = last_write_wins   # rival for rule changes: a new verified solution for F deletes every older note about F
 
     def add(self, text: str, embedding, correct: bool, is_poison: bool = False, source: str = "tests", claim_verified: bool = False):
-        # unconditional storage -- no verification gate
+        if self.last_write_wins and correct and "Outcome: CORRECT" in text:
+            m_ = re.search(r"def (\w+)\(", text)
+            if m_:
+                key = m_.group(1) + "("
+                self.items = [m for m in self.items if key not in m.text]
+        # otherwise unconditional storage -- no verification gate
         self.items.append(MemoryItem(text=text, embedding=embedding, correct=correct, is_poison=is_poison, source=source))
 
     def mark_stale(self, note, **_):
@@ -142,9 +150,15 @@ class AdaptiveTrustStore:
                  embed_fn=None, summarize_fn=None, label: str | None = None,
                  min_similarity: float = 0.0, hit_boost: bool = True,
                  evidence_merge: bool = False, evidence_threshold: float = 0.75, evidence_max_lines: int = 6,
-                 utility_rank: bool = False, show_kinds=None):
+                 utility_rank: bool = False, show_kinds=None,
+                 rule_memory: bool = False, rule_threshold: float = 0.75, rule_max_evidence: int = 6, rule_max_solutions: int = 2,
+                 rule_mode: str = "full", rule_show_evidence=None, rule_show_solutions=None):
         self.items: list[MemoryItem] = []
         self.show_kinds = tuple(show_kinds) if show_kinds else None
+        self.rule_memory = rule_memory                 # one slot per rule, overwritten when the rule changes (consolidate.render_slot)
+        self.rule_threshold, self.rule_max_evidence, self.rule_max_solutions = rule_threshold, rule_max_evidence, rule_max_solutions
+        self.rule_mode = rule_mode                     # 'full': evidence and solutions both live in slots; 'evidence_only': only evidence is slotted
+        self.rule_show = (rule_show_evidence, rule_show_solutions) if (rule_show_evidence or rule_show_solutions) else None  # how much of a slot a prompt shows
         self.utility_rank = utility_rank           # rank by similarity x learned utility (see record_outcome), not the composite score
         self.kind_stats: dict[str, list[int]] = {}  # note kind -> [answers that passed, answers it was shown for]
         self.evidence_merge = evidence_merge       # fold similar failure-evidence notes into one rule card (consolidate.py)
@@ -194,6 +208,8 @@ class AdaptiveTrustStore:
                 return  # discarded at the gate -- never promoted
         else:
             T0 = 1.0  # trust pillar off: nothing is ever gated or down-weighted
+        if self.rule_memory and self._slot_add(text, embedding, T0, claim_verified):
+            return
         if self.evidence_merge and claim_verified and self._fold_into_card(text, embedding, T0):
             return
         self.items.append(MemoryItem(text=text, embedding=embedding, trust=T0, correct=correct,
@@ -246,10 +262,113 @@ class AdaptiveTrustStore:
             m.hits += 1
         return chosen
 
+    # ---- rule memory (v7): one slot per rule, bounded, overwritten when the rule changes ----
+    @staticmethod
+    def _cos(a, b) -> float:
+        a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+        return float(a @ b / ((np.linalg.norm(a) or 1.0) * (np.linalg.norm(b) or 1.0)))
+
+    def _slot_match(self, embedding, sigs=None):
+        best, best_sim = None, -1.0
+        for m in self.items:
+            slot = getattr(m, "slot", None)
+            if slot is None or m.pinned:
+                continue
+            if sigs and slot["sigs"] and not (slot["sigs"] & sigs):
+                continue                                   # evidence of a different kind of failure is a different rule
+            sim = self._cos(embedding, m.embedding)
+            if sim > best_sim:
+                best, best_sim = m, sim
+        return best if best is not None and best_sim >= self.rule_threshold else None
+
+    def _slot_render(self, m) -> None:
+        from consolidate import render_slot
+        sl = m.slot
+        m.text = render_slot(sl["evidence"], sl["solutions"], sl["n"])
+        m.version += 1
+
+    def _slot_new(self, embedding, T0):
+        e = np.asarray(embedding, dtype=float)
+        m = MemoryItem(text="", embedding=e / (np.linalg.norm(e) or 1.0), trust=T0, correct=None, created_at_step=self._step,
+                       uid=self._new_uid(), source="rule_memory")
+        m.slot = {"evidence": [], "solutions": [], "ev_emb": [], "sol_emb": [], "sigs": set(), "n": 0}
+        m.stale = False
+        self.items.append(m)
+        return m
+
+    def _slot_touch(self, m, embedding, T0) -> None:
+        """Absorb one more task into the slot: move its centroid, refound it if it had been demoted, keep the best trust."""
+        sl = m.slot
+        if m.trust < self.t_min:                           # an obsolete (demoted) slot: the new evidence starts it afresh
+            sl.update(evidence=[], solutions=[], ev_emb=[], sol_emb=[], sigs=set(), n=0)
+            m.trust, m.created_at_step, m.stale = T0, self._step, False
+            m.embedding = np.asarray(embedding, dtype=float) / (np.linalg.norm(embedding) or 1.0)
+        else:
+            w = sl["n"] / (sl["n"] + 1)
+            e = np.asarray(m.embedding, dtype=float) * w + np.asarray(embedding, dtype=float) / (np.linalg.norm(embedding) or 1.0) * (1 - w)
+            m.embedding = e / (np.linalg.norm(e) or 1.0)
+            m.trust = max(m.trust, T0)
+        sl["n"] += 1
+
+    def _slot_add(self, text, embedding, T0, claim_verified) -> bool:
+        from consolidate import _pairs_from_note, extract_solution, is_evidence_note, note_signatures
+        if claim_verified and is_evidence_note(text):
+            task, check = _pairs_from_note(text)[0]
+            sigs = note_signatures(text)
+            m = self._slot_match(embedding, sigs) or self._slot_new(embedding, T0)
+            self._slot_touch(m, embedding, T0)
+            sl = m.slot
+            if all(check != c for _, c in sl["evidence"]):
+                sl["evidence"] = (sl["evidence"] + [(task, check)])[-self.rule_max_evidence:]
+                sl["ev_emb"] = (sl["ev_emb"] + [np.asarray(embedding, dtype=float)])[-self.rule_max_evidence:]
+            sl["sigs"] |= sigs
+        else:
+            sol = extract_solution(text)
+            if sol is None or self.rule_mode == "evidence_only":
+                return False                                # in 'evidence_only' mode solutions stay ordinary per-question notes
+            task, code = sol
+            m = self._slot_match(embedding) or self._slot_new(embedding, T0)
+            self._slot_touch(m, embedding, T0)
+            sl = m.slot
+            keep = [i for i, s_ in enumerate(sl["solutions"]) if s_[0] != task]
+            sl["solutions"] = ([sl["solutions"][i] for i in keep] + [(task, code)])[-self.rule_max_solutions:]
+            sl["sol_emb"] = ([sl["sol_emb"][i] for i in keep] + [np.asarray(embedding, dtype=float)])[-self.rule_max_solutions:]
+        self._slot_render(m)
+        return True
+
+    def _slot_view(self, m, query_embedding) -> None:
+        """Show only the part of a slot nearest to the question (rule_show = how many evidence lines, how many solutions)."""
+        from consolidate import render_slot
+        sl, (n_ev, n_sol) = m.slot, self.rule_show
+        def nearest(items, embs, n):
+            if not n or not items:
+                return []
+            order = sorted(range(len(items)), key=lambda i: -self._cos(query_embedding, embs[i]))[:n]
+            return [items[i] for i in sorted(order)]
+        m.text = render_slot(nearest(sl["evidence"], sl["ev_emb"], n_ev), nearest(sl["solutions"], sl["sol_emb"], n_sol), sl["n"])
+
+    def solutions_of(self, m) -> list[str]:
+        slot = getattr(m, "slot", None)
+        return [code for _, code in slot["solutions"]] if slot is not None else []
+
     def mark_stale(self, note, radius: float = 0.75, penalty: float = 0.35) -> int:
         """A stored solution was PROVEN wrong by the current checker (a rule changed). Its trust drops to zero, and every older note
         about similar tasks (cosine >= radius) loses `penalty` of trust at once, so the whole obsolete neighbourhood falls below the
         trust gate together instead of one note per failure. Notes created after the stale one are left alone (they may be new-rule)."""
+        if getattr(note, "slot", None) is not None:        # a rule slot: its rule changed, so the slot is emptied and gated
+            born = note.created_at_step
+            hit = 0
+            for m in self.items:
+                if m is note or m.pinned or m.created_at_step > born:
+                    continue
+                if self._cos(note.embedding, m.embedding) >= radius:
+                    m.trust = max(0.0, m.trust - penalty)
+                    hit += 1
+            note.slot.update(evidence=[], solutions=[], ev_emb=[], sol_emb=[], sigs=set(), n=0)
+            note.trust, note.stale, note.created_at_step, note.text = 0.0, False, self._step, ""
+            self.n_stale_marked = getattr(self, "n_stale_marked", 0) + 1
+            self.n_stale_propagated = getattr(self, "n_stale_propagated", 0) + hit
+            return hit
         note.trust, note.stale = 0.0, True
         ref = np.asarray(note.embedding, dtype=float)
         ref = ref / (np.linalg.norm(ref) or 1.0)
@@ -396,6 +515,10 @@ class AdaptiveTrustStore:
                            "retention": round(float(F), 3), "score": round(float(score), 3)})
         order = np.argsort(-np.array(scores))[:k]
         chosen = [self.items[i] for i in order if scores[i] > -1e8]
+        if self.rule_memory and self.rule_show:
+            for m in chosen:
+                if getattr(m, "slot", None) is not None:
+                    self._slot_view(m, query_embedding)
         self.last_explanations = [{**detail[i], "rank": r + 1} for r, i in enumerate(order) if scores[i] > -1e8]
         for m in chosen:
             m.hits += 1
