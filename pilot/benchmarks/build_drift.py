@@ -25,6 +25,8 @@ from sandbox import run_python  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / "data" / "conventions_drift.jsonl"
 OUT2 = Path(__file__).resolve().parents[1] / "data" / "conventions_drift2.jsonl"
+OUT3 = Path(__file__).resolve().parents[1] / "data" / "conventions_drift3.jsonl"
+OUT4 = Path(__file__).resolve().parents[1] / "data" / "conventions_drift4.jsonl"
 SETUP_B = bc.SETUP + '''
 
 def _raises(label, fn, exc_name):
@@ -164,6 +166,32 @@ def build() -> list[dict]:
     return rows
 
 
+def _pairs(rows: list[dict]) -> list[tuple[dict, dict]]:
+    """(phase-A row, phase-B row) per question, in file order (the builders append A then B for each question)."""
+    return [(rows[i], rows[i + 1]) for i in range(0, len(rows), 2)]
+
+
+def build3(rows1: list[dict], rows2: list[dict]) -> list[dict]:
+    """Recurring stream: every validated question of both drift streams asked under the old rule (A), the new rule (B), and the OLD
+    rule again (A2, identical tests to A, new ids). Tests whether notes demoted in B come back when the rule reverts."""
+    out = []
+    for a, b in _pairs(rows1) + _pairs(rows2):
+        out += [{**a, "dataset": "conventions_drift3"}, {**b, "dataset": "conventions_drift3"},
+                {**a, "dataset": "conventions_drift3", "id": a["id"] + "/A2", "phase": "A2"}]
+    return out
+
+
+def build4(rows1: list[dict], rows2: list[dict]) -> list[dict]:
+    """Transfer stream: half of the questions (even index inside their family) are asked under the old rule, the OTHER half
+    (odd index) under the new rule, so no stored solution is for the same function as a phase-B question."""
+    out, seen = [], {}
+    for a, b in _pairs(rows1) + _pairs(rows2):
+        k = seen.get(a["family"], 0)
+        seen[a["family"]] = k + 1
+        out.append({**a, "dataset": "conventions_drift4"} if k % 2 == 0 else {**b, "dataset": "conventions_drift4"})
+    return out
+
+
 if __name__ == "__main__":
     rows = build()
     OUT.write_text("".join(json.dumps(r) + "\n" for r in rows))
@@ -176,3 +204,9 @@ if __name__ == "__main__":
     c2 = Counter((r["family"], r["phase"]) for r in rows2)
     print(f"wrote {len(rows2)} validated tasks ({len(rows2) // 2} questions) to {OUT2}")
     print({f"{k[0]}/{k[1]}": v for k, v in sorted(c2.items())})
+    OUT3.write_text("".join(json.dumps(r) + "\n" for r in build3(rows, rows2)))
+    rows4 = build4(rows, rows2)
+    OUT4.write_text("".join(json.dumps(r) + "\n" for r in rows4))
+    c4 = Counter((r["family"], r["phase"]) for r in rows4)
+    print(f"wrote conventions_drift3 ({3 * (len(rows) + len(rows2)) // 2} tasks) and conventions_drift4 ({len(rows4)} tasks)")
+    print({f"{k[0]}/{k[1]}": v for k, v in sorted(c4.items())})
