@@ -46,6 +46,13 @@ compression:
   evidence_merge: false       # fold similar failure-evidence notes into one 'rule card' (pilot/consolidate.py)
   evidence_threshold: 0.75    # task-embedding cosine above which two failure notes count as the same kind of problem
   evidence_max_lines: 6       # checker results kept on one card (newest)
+  rule_memory: false          # one slot per rule: bounded checker evidence plus the latest verified solutions, overwritten when the rule changes
+  rule_threshold: 0.75        # task-embedding cosine above which a note belongs to an existing rule slot
+  rule_max_evidence: 6        # checker results kept per slot
+  rule_max_solutions: 2       # verified solutions kept per slot (latest)
+  rule_mode: full             # full | evidence_only (solutions then stay ordinary per-question notes)
+  rule_show_evidence: null    # null = show every stored evidence line; N = only the N lines nearest to the question
+  rule_show_solutions: null   # null = show every stored solution; N = only the N nearest to the question
 
 pillars:                      # ablation switches (Importance is never switched off)
   trust: true
