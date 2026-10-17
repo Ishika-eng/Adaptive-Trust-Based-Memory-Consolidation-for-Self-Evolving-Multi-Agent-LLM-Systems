@@ -233,6 +233,43 @@ PRESETS: dict[str, Preset] = {
                                     "signature_repair": True, "utility_credit": True, "reverify_stale": True},
                              retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True}),
     }),
+    # Rule memory v7 (docs/experiments/RULE_MEMORY.md; rules fixed before running). Clean stream: --dataset conventions --n 110.
+    # Dev drift stream: drift_v7 with --dataset conventions_drift --n 58. Unseen stream, run once if the dev rules hold: drift2_v7 with
+    # --dataset conventions_drift2 --n 40.
+    "learning_v7": Preset({"rule_mem": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                            agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True},
+                            retrieval={"hit_boost": False}, compression={"rule_memory": True})}),
+    "drift_v7": Preset({"rule_mem": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                            agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True},
+                            retrieval={"hit_boost": False}, compression={"rule_memory": True})}),
+    "drift2_v7": Preset({"rule_mem": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                            agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True},
+                            retrieval={"hit_boost": False}, compression={"rule_memory": True})}),
+    # Rule memory v8, Phase 1 (docs/experiments/RULE_MEMORY_V8.md): design seeds 7, 11, 19, clean stream (--dataset conventions --n 110).
+    "rm_design": Preset({
+        "static_rm": Condition("static", agent={"repair": True, "repair_with_memory": True}),
+        "rule_mem": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True}, retrieval={"hit_boost": False}, compression={"rule_memory": True}),
+        "rm_short": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True}, retrieval={"hit_boost": False},
+                              compression={"rule_memory": True, "rule_show_evidence": 1, "rule_show_solutions": 1}),
+        "rm_evidence_slots": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True}, retrieval={"hit_boost": False},
+                                       compression={"rule_memory": True, "rule_mode": "evidence_only"}),
+        "rm_k2": Condition("atmc", {"enable_forgetting": False, "enable_compression": False}, agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True}, retrieval={"hit_boost": False, "top_k": 2}, compression={"rule_memory": True}),
+    }),
+    # Stronger drift evidence (docs/experiments/DRIFT_V3.md; fixed before any run). Recurring stream: --dataset conventions_drift3 --n 147;
+    # transfer stream: --dataset conventions_drift4 --n 49. Seeds 101 202 303.
+    "drift_v3": Preset({
+        "no_memory": Condition("none"),
+        "static_rm": Condition("static", agent={"repair": True, "repair_with_memory": True}),
+        "static_rv": Condition("static", agent={"repair": True, "repair_with_memory": True, "reverify_stale": True}),
+        "static_lww": Condition("static", agent={"repair": True, "repair_with_memory": True}, retrieval={"last_write_wins": True}),
+        "atmc_v6": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                             agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True,
+                                    "signature_repair": True, "utility_credit": True, "reverify_stale": True},
+                             retrieval={"hit_boost": False, "utility_rank": True}, compression={"evidence_merge": True}),
+        "rule_mem": Condition("atmc", {"enable_forgetting": False, "enable_compression": False},
+                              agent={"evidence_note_trust": True, "repair": True, "repair_with_memory": True, "reverify_stale": True},
+                              retrieval={"hit_boost": False}, compression={"rule_memory": True}),
+    }),
     "agent": Preset({
         "atmc": Condition("atmc"),
         "atmc_planner": Condition("atmc", agent={"use_planner": True}),
@@ -311,6 +348,43 @@ def trust_metrics(store) -> dict:
     }
 
 
+def _store_codes(store, domain, m) -> list[str]:
+    if getattr(m, "slot", None) is not None and hasattr(store, "solutions_of"):
+        return list(store.solutions_of(m))
+    one = domain.note_solution(m.text)
+    return [one] if one else []
+
+
+def _is_visible(store, m) -> bool:
+    """Would the memory still offer this note to the model? (plain memory shows everything it holds)"""
+    if getattr(m, "stale", False):
+        return False
+    t_min = getattr(store, "t_min", None)
+    if t_min is not None and getattr(store, "enable_trust", False) and m.trust < t_min:
+        return False
+    return bool(m.text) if getattr(m, "slot", None) is not None else True
+
+
+def hygiene_audit(store, domain, phase_tasks: list[dict]) -> dict:
+    """Re-run every stored verified solution against the CURRENT checker (the task of the same function in the phase that just ended).
+    wrongly_shown: fails now but is still offered. wrongly_hidden: passes now but is not offered (premature retirement)."""
+    import re as _re
+    by_ep = {t["entry_point"]: t for t in phase_tasks if t.get("entry_point")}
+    n = ws = wh = 0
+    for m in getattr(store, "items", []):
+        for code in _store_codes(store, domain, m):
+            ep = _re.search(r"def (\w+)\(", code)
+            task = by_ep.get(ep.group(1)) if ep else None
+            ok = domain.reverify(task, code) if task else None
+            if ok is None:
+                continue
+            n += 1
+            vis = _is_visible(store, m)
+            ws += (not ok) and vis
+            wh += ok and (not vis)
+    return {"audited": n, "wrongly_shown": ws, "wrongly_hidden": wh}
+
+
 def evaluate_frozen(agent: Agent, task: dict) -> bool:
     """Score one unseen task with memory read-only."""
     saved = [(m, m.hits) for m in agent.store.items]
@@ -350,7 +424,7 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
     if ccfg.agent.curriculum == "fixed":
         agent.pool = sequence                      # identical sequence for every fixed-order condition
     usage0, t0 = llm.usage_snapshot(), time.time()
-    steps = []
+    steps, audits = [], {}
     if preset.repeats > 1:                         # same tasks again and again: pass-major order, explicit tasks
         schedule = sequence * preset.repeats
     else:
@@ -359,12 +433,16 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
     for i, task in enumerate(schedule):
         r = agent.step(task)
         log = r.to_log()
+        log["phase"] = r.task.get("phase")
         if preset.verifier_noise:                  # score on the truth; keep what the agent was told
             log["recorded_correct"] = log["correct"]
             log["correct"] = bool(domain.last_true_correct)
         poison_now = [m.trust for m in getattr(store, "items", []) if m.is_poison]
         log["poison_trust_mean"] = round(sum(poison_now) / len(poison_now), 4) if poison_now else None
         steps.append(log)
+        nxt = sequence[i + 1].get("phase") if i + 1 < len(sequence) else None
+        if log["phase"] and nxt != log["phase"]:           # a phase just ended: audit what the memory would still show
+            audits[log["phase"]] = hygiene_audit(store, domain, [t for t in sequence if t.get("phase") == log["phase"]])
         r_ok = log["correct"]
         print(f"  [{cname} s{seed}] {i+1}/{n_steps} {'PASS' if r_ok else 'fail'} ({r.verdict.stage}) "
               f"poison_in_ctx={r.n_poison_retrieved} mem={r.memory_size}", flush=True)
@@ -398,6 +476,7 @@ def run_one(exp: str, cname: str, cond: Condition, preset: Preset, seed: int, cf
         "tokens_out": usage1["output_tokens"] - usage0["output_tokens"],
         "mean_retrieval_ms": sum(s["retrieval_ms"] for s in steps) / N,
         "n_steps": N,
+        "hygiene": audits,
         "repair_attempted": sum(s.get("repair_attempted", False) for s in steps),
         "repair_passed": sum(s.get("repair_passed", False) for s in steps),
         "pass_rate_with_retry": (sum(ok) + sum(s.get("repair_passed", False) for s in steps)) / N,
