@@ -63,7 +63,7 @@ class CodingDomain(Domain):
                     "entry_point": None, "tests": tests, "setup": d.get("test_setup_code", ""),
                     "reference": d["code"].replace("\r\n", "\n"),
                 })
-        elif dataset in ("conventions", "conventions_heldout", "conventions_drift", "conventions_drift2"):   # pilot/benchmarks/build_*.py
+        elif dataset in ("conventions", "conventions_heldout", "conventions_drift", "conventions_drift2", "conventions_drift3", "conventions_drift4"):   # pilot/benchmarks/build_*.py
             for line in open(ROOT / f"pilot/data/{dataset}.jsonl"):
                 d = json.loads(line)
                 tasks.append({k: d[k] for k in ("id", "dataset", "family", "role", "question", "entry_point", "tests", "setup",
@@ -77,7 +77,13 @@ class CodingDomain(Domain):
         for name in cfg.coding.datasets:
             tasks += self._load(name)
         rng = random.Random(seed)
-        if list(cfg.coding.datasets) in (["conventions_drift"], ["conventions_drift2"]):
+        if list(cfg.coding.datasets) in (["conventions_drift3"],):
+            # recurring rule change: old rule (A), new rule (B), the old rule again (A2)
+            parts = [[t for t in tasks if t["phase"] == ph] for ph in ("A", "B", "A2")]
+            for p_ in parts:
+                rng.shuffle(p_)
+            return (parts[0] + parts[1] + parts[2])[:n]
+        if list(cfg.coding.datasets) in (["conventions_drift"], ["conventions_drift2"], ["conventions_drift4"]):
             # a rule-change stream: every question first under the OLD rule (phase A), then under the NEW one (phase B)
             a = [t for t in tasks if t["phase"] == "A"]
             b = [t for t in tasks if t["phase"] == "B"]
