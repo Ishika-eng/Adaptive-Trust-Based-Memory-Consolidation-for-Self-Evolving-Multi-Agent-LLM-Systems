@@ -6,8 +6,8 @@ from __future__ import annotations
 from stores import AdaptiveTrustStore, NoMemoryStore, ReflexionStyleStore, StaticMemoryStore
 
 
-def build_static(min_similarity: float = 0.0, show_kinds=None) -> StaticMemoryStore:
-    return StaticMemoryStore(min_similarity=min_similarity, show_kinds=show_kinds)
+def build_static(min_similarity: float = 0.0, show_kinds=None, last_write_wins: bool = False) -> StaticMemoryStore:
+    return StaticMemoryStore(min_similarity=min_similarity, show_kinds=show_kinds, last_write_wins=last_write_wins)
 
 
 def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_overrides) -> AdaptiveTrustStore:
@@ -42,6 +42,13 @@ def build_atmc(cfg, embedder, summarize_fn, label: str | None = None, **pillar_o
         hit_boost=cfg.retrieval.to_dict().get("hit_boost", True),
         utility_rank=cfg.retrieval.to_dict().get("utility_rank", False),
         show_kinds=cfg.retrieval.to_dict().get("show_kinds"),
+        rule_memory=cfg.to_dict().get("compression", {}).get("rule_memory", False),
+        rule_threshold=cfg.to_dict().get("compression", {}).get("rule_threshold", 0.75),
+        rule_max_evidence=cfg.to_dict().get("compression", {}).get("rule_max_evidence", 6),
+        rule_max_solutions=cfg.to_dict().get("compression", {}).get("rule_max_solutions", 2),
+        rule_mode=cfg.to_dict().get("compression", {}).get("rule_mode", "full"),
+        rule_show_evidence=cfg.to_dict().get("compression", {}).get("rule_show_evidence"),
+        rule_show_solutions=cfg.to_dict().get("compression", {}).get("rule_show_solutions"),
         evidence_merge=cfg.to_dict().get("compression", {}).get("evidence_merge", False),
         evidence_threshold=cfg.to_dict().get("compression", {}).get("evidence_threshold", 0.75),
         evidence_max_lines=cfg.to_dict().get("compression", {}).get("evidence_max_lines", 6),
@@ -57,7 +64,8 @@ def build_store(kind: str, cfg, embedder, summarize_fn, **pillar_overrides):
     if kind == "none":
         return NoMemoryStore()
     if kind == "static":
-        return build_static(cfg.retrieval.to_dict().get("min_similarity", 0.0), cfg.retrieval.to_dict().get("show_kinds"))
+        return build_static(cfg.retrieval.to_dict().get("min_similarity", 0.0), cfg.retrieval.to_dict().get("show_kinds"),
+                            cfg.retrieval.to_dict().get("last_write_wins", False))
     if kind == "reflexion":
         return ReflexionStyleStore(buffer_size=cfg.retrieval.top_k)
     if kind == "atmc":
